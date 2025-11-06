@@ -1,0 +1,6 @@
+# Cron configuration for Dokku
+# Format: minute hour day month weekday command
+
+# Ejecutar verificación de resumen cada hora (el endpoint filtra por preferencias de usuario)
+# Esto permite que cada usuario reciba su resumen a su hora configurada
+0 * * * * /app/.cron/dokku-cron.sh >> /var/log/daily-summary.log 2>&1

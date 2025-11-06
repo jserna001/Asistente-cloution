@@ -1,0 +1,14 @@
+{
+  "name": "browser-service",
+  "version": "1.0.0",
+  "description": "Servicio de 'Manos' con Playwright",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "fastify": "4.28.1",
+    "playwright": "^1.56.1"
+  }
+}

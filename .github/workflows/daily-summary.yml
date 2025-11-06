@@ -1,0 +1,30 @@
+name: Daily Summary Generation
+
+on:
+  schedule:
+    # Ejecutar todos los días a las 7:00 AM UTC (2:00 AM Colombia)
+    - cron: '0 7 * * *'
+  workflow_dispatch: # Permite ejecutar manualmente desde GitHub Actions
+
+jobs:
+  generate-summary:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate Daily Summary
+        run: |
+          response=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/daily-summary")
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          if [ "$http_code" == "200" ]; then
+            echo "✓ Resumen diario generado exitosamente"
+            echo "$body"
+          else
+            echo "Error: HTTP $http_code"
+            echo "$body"
+            exit 1
+          fi

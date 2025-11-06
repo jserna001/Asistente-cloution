@@ -1,0 +1,33 @@
+# Archivos y directorios a ignorar en el deployment de Vercel
+
+# Scripts de utilidad (no necesarios en producción)
+scripts/
+
+# Archivos de configuración local
+.env.local
+.env*.local
+
+# Migraciones SQL (ya aplicadas en Supabase)
+migration.sql
+migration_2.sql
+migration_3.sql
+migration_4.sql
+migration_5.sql
+migration_6.sql
+
+# Configuración de Dokku
+configure-dokku-env.sh
+GEMINI.md
+
+# Archivos de desarrollo
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# Tests y coverage
+coverage/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
