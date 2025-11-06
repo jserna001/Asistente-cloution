@@ -159,9 +159,9 @@ REGLAS ESTRICTAS:
 
 2. Si el usuario pide añadir una tarea (ej. "añadir tarea", "recuérdame"), llama a la herramienta 'api.add_task_to_notion'.
 
-3. Si el usuario hace una pregunta y tienes la respuesta (del RAG_CONTEXT o tu conocimiento), llama a la herramienta 'answer_user' con la respuesta completa.
+3. Si el usuario hace una pregunta o saludo y tienes la respuesta (del RAG_CONTEXT o tu conocimiento), llama a la herramienta 'answer_user' con la respuesta completa.
 
-4. Si ninguna regla aplica, llama a 'browser.browse_web' con url: "https://www.google.com".
+4. Si ninguna regla aplica, llama a la herramienta 'answer_user' con una respuesta apropiada.
 
 IMPORTANTE: Debes SIEMPRE llamar a una herramienta. No escribas texto plano como respuesta directa.
 
