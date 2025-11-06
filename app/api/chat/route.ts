@@ -327,6 +327,13 @@ Acción: browser.type_text(selector='#searchBox', ...) ❌ PROHIBIDO - selector 
 
   } catch (error: any) {
     console.error('Error en el endpoint de chat (bucle de agente):', error);
-    return NextResponse.json({ error: 'Ocurrió un error interno en el servidor.', details: error.message }, { status: 500 });
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', JSON.stringify(error, null, 2));
+    return NextResponse.json({
+      error: 'Ocurrió un error interno en el servidor.',
+      details: error.message,
+      errorType: error.constructor.name,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    }, { status: 500 });
   }
 }
