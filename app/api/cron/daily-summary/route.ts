@@ -203,6 +203,7 @@ export async function GET(request: Request) {
         // 5.2 Leer Google Calendar
         console.log(`[CRON] [${userId}] Leyendo Google Calendar...`);
         const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+        // Obtener rango de fechas para eventos de hoy
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
         const todayEnd = new Date();
