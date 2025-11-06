@@ -168,7 +168,7 @@ export async function GET(request: Request) {
           .select('id, created_at')
           .eq('user_id', userId)
           .gte('created_at', checkDateStart.toISOString())
-          .single();
+          .maybeSingle();
 
         if (!summaryCheckError && existingSummary) {
           console.log(`[CRON] [${userId}] ⏭️ Ya existe un resumen de hoy, saltando...`);
