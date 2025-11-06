@@ -30,8 +30,8 @@ export async function executeRAG(
   // Paso 2: Buscar en Supabase usando el cliente y userId proporcionados
   const { data: chunks, error } = await supabase.rpc('match_document_chunks', {
     query_embedding: queryVector,
-    match_threshold: 0.7,
-    match_count: 5,
+    match_threshold: 0.5, // Reducido de 0.7 a 0.5 para encontrar más resultados
+    match_count: 10, // Aumentado de 5 a 10 para obtener más contexto
     user_id_input: userId // ¡La RLS se aplica aquí!
   });
 
@@ -41,13 +41,16 @@ export async function executeRAG(
   }
 
   if (!chunks || chunks.length === 0) {
-    console.log('No se encontraron chunks relevantes.');
+    console.log('[RAG] No se encontraron chunks relevantes.');
+    console.log(`[RAG] Query: "${query}"`);
+    console.log(`[RAG] User ID: ${userId}`);
     return "No se encontró información relevante en la memoria.";
   }
 
   // Paso 3: Devolver el Contexto
-  console.log(`RAG encontró ${chunks.length} chunks.`);
+  console.log(`[RAG] ✓ Encontró ${chunks.length} chunks relevantes`);
+  console.log(`[RAG] Chunks:`, chunks.map((c: any) => ({ id: c.id, similarity: c.similarity, preview: c.content.substring(0, 50) })));
   const contextText = chunks.map((chunk: any) => chunk.content).join("\n---\n");
-  
+
   return contextText;
 }
