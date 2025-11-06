@@ -214,10 +214,12 @@ Acción: browser.type_text(selector='#searchBox', ...) ❌ PROHIBIDO - selector 
     console.log("--- DEBUG: PROCESSED HISTORY ---");
     console.log(JSON.stringify(processedHistory, null, 2));
 
-    // 2. Iniciamos el chat (limpio, sin instrucción)
+    // 2. Iniciamos el chat con system instruction estructurada correctamente
     const chat = chatModel.startChat({
           tools,
-          systemInstruction: systemInstructionText,
+          systemInstruction: {
+            parts: [{ text: systemInstructionText }]
+          },
           history: processedHistory, // <-- Ahora esta variable SÍ existe
         });    
     // 3. ¡AQUÍ ESTÁ EL CAMBIO!
