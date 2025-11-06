@@ -30,13 +30,9 @@ export async function GET(request: Request) {
     // Si viene de Vercel Cron, permitir sin token
     const isVercelCron = vercelCronHeader === '1';
 
-    // Inicializar cliente de Supabase
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
+    let supabase;
     let authenticatedUserId: string | null = null;
+    let userToken: string | null = null;
 
     // Si no es Vercel Cron, verificar autenticación
     if (!isVercelCron) {
@@ -46,11 +42,20 @@ export async function GET(request: Request) {
 
         // Verificar si es el CRON_SECRET o un token de Supabase
         if (token === cronSecret) {
-          // Es un cron job externo, procesar todos los usuarios
+          // Es un cron job externo, usar SERVICE_ROLE_KEY para bypasear RLS
           console.log('[CRON] Autenticado como cron job externo');
+          supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+          );
         } else {
-          // Intentar verificar como token de Supabase
-          const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+          // Es un usuario individual, verificar su token
+          const tempClient = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+          );
+
+          const { data: { user }, error: authError } = await tempClient.auth.getUser(token);
 
           if (authError || !user) {
             return NextResponse.json(
@@ -59,9 +64,23 @@ export async function GET(request: Request) {
             );
           }
 
-          // Usuario autenticado - solo procesar SU resumen
+          // Usuario autenticado - crear cliente autenticado
           authenticatedUserId = user.id;
+          userToken = token;
           console.log(`[CRON] Usuario autenticado: ${authenticatedUserId}`);
+
+          // Crear cliente autenticado con el token del usuario
+          supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+              global: {
+                headers: {
+                  Authorization: `Bearer ${token}`
+                }
+              }
+            }
+          );
         }
       } else {
         return NextResponse.json(
@@ -69,6 +88,13 @@ export async function GET(request: Request) {
           { status: 401 }
         );
       }
+    } else {
+      // Vercel Cron - usar SERVICE_ROLE_KEY para bypasear RLS
+      console.log('[CRON] Autenticado como Vercel Cron');
+      supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -85,12 +111,19 @@ export async function GET(request: Request) {
         .select('user_id, daily_summary_time, timezone')
         .eq('user_id', authenticatedUserId)
         .eq('daily_summary_enabled', true)
-        .single();
+        .maybeSingle();
 
-      if (prefError || !userPref) {
+      if (prefError) {
+        return NextResponse.json({
+          error: 'Error consultando preferencias',
+          details: prefError.message
+        }, { status: 500 });
+      }
+
+      if (!userPref) {
         return NextResponse.json({
           error: 'Resumen diario no está habilitado para este usuario',
-          details: prefError?.message
+          details: 'No se encontró configuración o daily_summary_enabled es false'
         }, { status: 400 });
       }
 
