@@ -16,6 +16,7 @@ function ChatUI() {
   const [isLoading, setIsLoading] = useState(false);
   const [authStatus, setAuthStatus] = useState<string | null>(null);
   const [dailySummary, setDailySummary] = useState<string | null>(null);
+  const [summaryDate, setSummaryDate] = useState<string | null>(null);
   
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -33,7 +34,7 @@ function ChatUI() {
     // de sesión para autenticar esta solicitud. RLS lo filtrará.
     const { data, error } = await supabase
       .from('daily_summaries')
-      .select('summary_text')
+      .select('summary_text, created_at')
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -44,6 +45,17 @@ function ChatUI() {
 
     if (data && data.length > 0) {
       setDailySummary(data[0].summary_text);
+      // Formatear la fecha
+      const date = new Date(data[0].created_at);
+      const today = new Date();
+      const isToday = date.toDateString() === today.toDateString();
+      const formattedDate = date.toLocaleDateString('es-CO', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      setSummaryDate(isToday ? `Hoy, ${formattedDate}` : formattedDate);
     } else {
       console.log('No se encontró resumen diario.');
     }
@@ -130,6 +142,16 @@ function ChatUI() {
       {/* Contenedor del Resumen Diario */}
       {dailySummary && (
         <div className="summary-container">
+          {summaryDate && (
+            <div style={{
+              fontSize: '0.9rem',
+              color: '#8E8E93',
+              marginBottom: '12px',
+              fontWeight: '500'
+            }}>
+              📅 {summaryDate}
+            </div>
+          )}
           <pre className="summary-text">{dailySummary}</pre>
         </div>
       )}
