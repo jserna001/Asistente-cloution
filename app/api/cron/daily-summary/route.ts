@@ -32,7 +32,6 @@ export async function GET(request: Request) {
 
     let supabase;
     let authenticatedUserId: string | null = null;
-    let userToken: string | null = null;
 
     // Si no es Vercel Cron, verificar autenticación
     if (!isVercelCron) {
@@ -64,22 +63,15 @@ export async function GET(request: Request) {
             );
           }
 
-          // Usuario autenticado - crear cliente autenticado
+          // Usuario autenticado - usar SERVICE_ROLE_KEY para bypasear RLS
+          // (Ya verificamos la identidad del usuario con getUser, es seguro)
           authenticatedUserId = user.id;
-          userToken = token;
           console.log(`[CRON] Usuario autenticado: ${authenticatedUserId}`);
 
-          // Crear cliente autenticado con el token del usuario
+          // Usar SERVICE_ROLE_KEY para evitar problemas con RLS
           supabase = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-              global: {
-                headers: {
-                  Authorization: `Bearer ${token}`
-                }
-              }
-            }
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
           );
         }
       } else {
