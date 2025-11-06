@@ -211,10 +211,14 @@ export async function GET(request: Request) {
           .from('user_credentials')
           .select('encrypted_refresh_token, iv, auth_tag')
           .eq('user_id', userId)
-          .single();
+          .maybeSingle();
 
-        if (credsError || !creds) {
-          throw new Error(`No se encontraron credenciales: ${credsError?.message}`);
+        if (credsError) {
+          throw new Error(`Error consultando credenciales: ${credsError.message}`);
+        }
+
+        if (!creds) {
+          throw new Error('No se encontraron credenciales de Google para este usuario');
         }
 
         if (!creds.encrypted_refresh_token || !creds.iv || !creds.auth_tag) {
