@@ -211,6 +211,7 @@ export async function GET(request: Request) {
           .from('user_credentials')
           .select('encrypted_refresh_token, iv, auth_tag')
           .eq('user_id', userId)
+          .eq('service_name', 'google')
           .maybeSingle();
 
         if (credsError) {
