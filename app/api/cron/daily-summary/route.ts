@@ -21,7 +21,8 @@ export async function GET(request: Request) {
     // 1. Verificar el token de autorización
     // Aceptamos requests de:
     // - Vercel Cron (header x-vercel-cron)
-    // - Servicios externos con Bearer token
+    // - Servicios externos con Bearer token (CRON_SECRET)
+    // - Usuario autenticado con Supabase token (para generar su propio resumen)
     const authHeader = request.headers.get('authorization');
     const vercelCronHeader = request.headers.get('x-vercel-cron');
     const cronSecret = process.env.CRON_SECRET;
@@ -29,86 +30,125 @@ export async function GET(request: Request) {
     // Si viene de Vercel Cron, permitir sin token
     const isVercelCron = vercelCronHeader === '1';
 
-    // Si no es Vercel Cron, verificar el token
-    if (!isVercelCron) {
-      if (!cronSecret) {
-        return NextResponse.json(
-          { error: 'CRON_SECRET no configurado en variables de entorno' },
-          { status: 500 }
-        );
-      }
-
-      if (authHeader !== `Bearer ${cronSecret}`) {
-        return NextResponse.json(
-          { error: 'No autorizado' },
-          { status: 401 }
-        );
-      }
-    }
-
-    // 2. Inicializar clientes
+    // Inicializar cliente de Supabase
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
+    let authenticatedUserId: string | null = null;
+
+    // Si no es Vercel Cron, verificar autenticación
+    if (!isVercelCron) {
+      // Intentar autenticar como usuario de Supabase
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+
+        // Verificar si es el CRON_SECRET o un token de Supabase
+        if (token === cronSecret) {
+          // Es un cron job externo, procesar todos los usuarios
+          console.log('[CRON] Autenticado como cron job externo');
+        } else {
+          // Intentar verificar como token de Supabase
+          const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+          if (authError || !user) {
+            return NextResponse.json(
+              { error: 'No autorizado - token inválido' },
+              { status: 401 }
+            );
+          }
+
+          // Usuario autenticado - solo procesar SU resumen
+          authenticatedUserId = user.id;
+          console.log(`[CRON] Usuario autenticado: ${authenticatedUserId}`);
+        }
+      } else {
+        return NextResponse.json(
+          { error: 'No autorizado - falta token' },
+          { status: 401 }
+        );
+      }
+    }
+
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
     const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
     const chatModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    // 3. Obtener todos los usuarios que tienen el resumen diario habilitado
-    const { data: userPrefs, error: prefsError } = await supabase
-      .from('user_preferences')
-      .select('user_id, daily_summary_time, timezone')
-      .eq('daily_summary_enabled', true);
+    let usersToProcess: Array<{ user_id: string; daily_summary_time: string; timezone: string }> = [];
 
-    if (prefsError) {
-      throw new Error(`Error obteniendo preferencias de usuarios: ${prefsError.message}`);
-    }
+    // 3. Determinar qué usuarios procesar
+    if (authenticatedUserId) {
+      // Usuario individual autenticado - solo procesar su resumen
+      const { data: userPref, error: prefError } = await supabase
+        .from('user_preferences')
+        .select('user_id, daily_summary_time, timezone')
+        .eq('user_id', authenticatedUserId)
+        .eq('daily_summary_enabled', true)
+        .single();
 
-    if (!userPrefs || userPrefs.length === 0) {
-      console.log('[CRON] No hay usuarios con resumen diario habilitado');
-      return NextResponse.json({
-        success: true,
-        message: 'No hay usuarios con resumen diario habilitado',
-        processedUsers: 0
+      if (prefError || !userPref) {
+        return NextResponse.json({
+          error: 'Resumen diario no está habilitado para este usuario',
+          details: prefError?.message
+        }, { status: 400 });
+      }
+
+      usersToProcess = [userPref];
+      console.log(`[CRON] Procesando resumen para usuario individual: ${authenticatedUserId}`);
+    } else {
+      // Cron automático - procesar todos los usuarios que necesitan resumen
+      const { data: userPrefs, error: prefsError } = await supabase
+        .from('user_preferences')
+        .select('user_id, daily_summary_time, timezone')
+        .eq('daily_summary_enabled', true);
+
+      if (prefsError) {
+        throw new Error(`Error obteniendo preferencias de usuarios: ${prefsError.message}`);
+      }
+
+      if (!userPrefs || userPrefs.length === 0) {
+        console.log('[CRON] No hay usuarios con resumen diario habilitado');
+        return NextResponse.json({
+          success: true,
+          message: 'No hay usuarios con resumen diario habilitado',
+          processedUsers: 0
+        });
+      }
+
+      console.log(`[CRON] Encontrados ${userPrefs.length} usuarios con resumen habilitado`);
+
+      // 4. Filtrar usuarios cuya hora configurada coincida con la hora actual
+      const now = new Date();
+
+      usersToProcess = userPrefs.filter(pref => {
+        // Convertir la hora configurada del usuario a UTC
+        const [hours, minutes] = pref.daily_summary_time.split(':').map(Number);
+
+        // Crear fecha en la zona horaria del usuario
+        const userTime = new Date(now.toLocaleString('en-US', { timeZone: pref.timezone }));
+        const userHour = userTime.getHours();
+        const userMinute = userTime.getMinutes();
+
+        // Verificar si la hora actual del usuario coincide con su hora configurada
+        // (con margen de ±30 minutos para evitar pérdidas si el cron se ejecuta con retraso)
+        const configuredMinutes = hours * 60 + minutes;
+        const currentUserMinutes = userHour * 60 + userMinute;
+        const diff = Math.abs(configuredMinutes - currentUserMinutes);
+
+        return diff <= 30;
       });
-    }
 
-    console.log(`[CRON] Encontrados ${userPrefs.length} usuarios con resumen habilitado`);
+      console.log(`[CRON] ${usersToProcess.length} usuarios necesitan resumen en este momento`);
 
-    // 4. Filtrar usuarios cuya hora configurada coincida con la hora actual
-    const now = new Date();
-    const currentHour = now.getUTCHours();
-    const currentMinute = now.getUTCMinutes();
-
-    const usersToProcess = userPrefs.filter(pref => {
-      // Convertir la hora configurada del usuario a UTC
-      const [hours, minutes] = pref.daily_summary_time.split(':').map(Number);
-
-      // Crear fecha en la zona horaria del usuario
-      const userTime = new Date(now.toLocaleString('en-US', { timeZone: pref.timezone }));
-      const userHour = userTime.getHours();
-      const userMinute = userTime.getMinutes();
-
-      // Verificar si la hora actual del usuario coincide con su hora configurada
-      // (con margen de ±30 minutos para evitar pérdidas si el cron se ejecuta con retraso)
-      const configuredMinutes = hours * 60 + minutes;
-      const currentUserMinutes = userHour * 60 + userMinute;
-      const diff = Math.abs(configuredMinutes - currentUserMinutes);
-
-      return diff <= 30;
-    });
-
-    console.log(`[CRON] ${usersToProcess.length} usuarios necesitan resumen en este momento`);
-
-    if (usersToProcess.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'Ningún usuario necesita resumen en este momento',
-        processedUsers: 0,
-        totalUsers: userPrefs.length
-      });
+      if (usersToProcess.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'Ningún usuario necesita resumen en este momento',
+          processedUsers: 0,
+          totalUsers: userPrefs.length
+        });
+      }
     }
 
     // 5. Generar resumen para cada usuario
@@ -119,6 +159,28 @@ export async function GET(request: Request) {
       console.log(`[CRON] Generando resumen para usuario: ${userId}`);
 
       try {
+        // 5.0 Verificar si ya existe un resumen de HOY
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const { data: existingSummary, error: summaryCheckError } = await supabase
+          .from('daily_summaries')
+          .select('id, created_at')
+          .eq('user_id', userId)
+          .gte('created_at', todayStart.toISOString())
+          .single();
+
+        if (!summaryCheckError && existingSummary) {
+          console.log(`[CRON] [${userId}] ⏭️ Ya existe un resumen de hoy, saltando...`);
+          results.push({
+            userId,
+            success: true,
+            skipped: true,
+            message: 'Resumen de hoy ya existe'
+          });
+          continue;
+        }
+
         // 5.1 Obtener credenciales de Google
         const { data: creds, error: credsError } = await supabase
           .from('user_credentials')

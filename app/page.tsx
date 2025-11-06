@@ -26,10 +26,11 @@ function ChatUI() {
    * Carga el resumen diario para el USUARIO AUTENTICADO.
    * RLS (Row Level Security) en Supabase se encarga de filtrar
    * los resúmenes basándose en el usuario logueado.
+   * Si no hay resumen de hoy, lo genera automáticamente.
    */
   async function loadDailySummary() {
     console.log('Cargando resumen diario...');
-    
+
     // El cliente de Supabase (browser) usa automáticamente el token
     // de sesión para autenticar esta solicitud. RLS lo filtrará.
     const { data, error } = await supabase
@@ -43,21 +44,80 @@ function ChatUI() {
       return;
     }
 
+    const today = new Date();
+    let needsNewSummary = false;
+
     if (data && data.length > 0) {
-      setDailySummary(data[0].summary_text);
-      // Formatear la fecha
       const date = new Date(data[0].created_at);
-      const today = new Date();
       const isToday = date.toDateString() === today.toDateString();
-      const formattedDate = date.toLocaleDateString('es-CO', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-      setSummaryDate(isToday ? `Hoy, ${formattedDate}` : formattedDate);
+
+      if (isToday) {
+        // Ya existe un resumen de hoy
+        setDailySummary(data[0].summary_text);
+        const formattedDate = date.toLocaleDateString('es-CO', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        setSummaryDate(`Hoy, ${formattedDate}`);
+      } else {
+        // El resumen es de otro día
+        needsNewSummary = true;
+        // Mostrar el resumen viejo mientras se genera el nuevo
+        setDailySummary(data[0].summary_text);
+        const formattedDate = date.toLocaleDateString('es-CO', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        setSummaryDate(formattedDate);
+      }
     } else {
-      console.log('No se encontró resumen diario.');
+      // No hay ningún resumen
+      needsNewSummary = true;
+    }
+
+    // Si necesitamos un resumen nuevo, generarlo automáticamente
+    if (needsNewSummary) {
+      console.log('No hay resumen de hoy, generando uno nuevo...');
+      await generateDailySummary();
+    }
+  }
+
+  /**
+   * Genera un resumen diario llamando al endpoint del cron.
+   * Esta función es llamada automáticamente si no hay resumen de hoy.
+   */
+  async function generateDailySummary() {
+    try {
+      // Obtener el token de sesión
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error || !session) {
+        console.error('No se puede generar resumen: usuario no autenticado');
+        return;
+      }
+
+      // Llamar al endpoint del cron (requiere autenticación)
+      const response = await fetch('/api/cron/daily-summary', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.ok) {
+        console.log('Resumen generado exitosamente, recargando...');
+        // Esperar 2 segundos para dar tiempo a que se guarde
+        setTimeout(() => {
+          loadDailySummary();
+        }, 2000);
+      } else {
+        console.error('Error generando resumen:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error al solicitar generación de resumen:', error);
     }
   }
 
