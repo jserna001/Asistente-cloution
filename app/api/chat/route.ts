@@ -214,24 +214,21 @@ Acción: browser.type_text(selector='#searchBox', ...) ❌ PROHIBIDO - selector 
     console.log("--- DEBUG: PROCESSED HISTORY ---");
     console.log(JSON.stringify(processedHistory, null, 2));
 
-    // 2. Iniciamos el chat con system instruction estructurada correctamente
+    // 2. Iniciamos el chat - omitiendo systemInstruction para evitar error 400
+    // Las instrucciones se pasarán como parte del primer mensaje
     const chat = chatModel.startChat({
           tools,
-          systemInstruction: {
-            parts: [{ text: systemInstructionText }]
-          },
-          history: processedHistory, // <-- Ahora esta variable SÍ existe
+          history: processedHistory,
         });    
-    // 3. ¡AQUÍ ESTÁ EL CAMBIO!
-    // Inyectamos la instrucción del sistema y la consulta del usuario JUNTAS
-    // como un solo prompt "user".
+    // 3. Inyectamos las instrucciones del sistema, contexto RAG y consulta del usuario
     const userPrompt = `
-  **RAG_CONTEXT:** ---
-  ${ragContext}
-  ---
+${systemInstructionText}
 
-  **Solicitud del Usuario:**
-  ${query}
+**RAG_CONTEXT:**
+${ragContext}
+
+**Solicitud del Usuario:**
+${query}
 `;
 
     let step = 0;
