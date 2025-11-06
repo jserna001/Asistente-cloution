@@ -160,14 +160,14 @@ export async function GET(request: Request) {
 
       try {
         // 5.0 Verificar si ya existe un resumen de HOY
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        const checkDateStart = new Date();
+        checkDateStart.setHours(0, 0, 0, 0);
 
         const { data: existingSummary, error: summaryCheckError } = await supabase
           .from('daily_summaries')
           .select('id, created_at')
           .eq('user_id', userId)
-          .gte('created_at', todayStart.toISOString())
+          .gte('created_at', checkDateStart.toISOString())
           .single();
 
         if (!summaryCheckError && existingSummary) {
