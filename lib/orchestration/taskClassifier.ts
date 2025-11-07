@@ -62,9 +62,15 @@ Responde SOLO con UNA palabra (la categoría): SIMPLE, RAG, BROWSER, NOTION_MCP 
 
     // Validar que sea una categoría válida
     const validTypes: TaskType[] = ['SIMPLE', 'RAG', 'BROWSER', 'NOTION_MCP', 'COMPLEX'];
-    const taskType = validTypes.includes(classification as TaskType)
+    let taskType = validTypes.includes(classification as TaskType)
       ? (classification as TaskType)
       : 'SIMPLE'; // Fallback seguro
+
+    // OVERRIDE FORZADO: Si la query contiene "Notion", SIEMPRE usar NOTION_MCP
+    if (query.toLowerCase().includes('notion')) {
+      taskType = 'NOTION_MCP';
+      console.log(`[CLASSIFIER] ⚠️ Override aplicado: Query contiene "Notion" → NOTION_MCP`);
+    }
 
     const duration = Date.now() - startTime;
     console.log(`[CLASSIFIER] Query: "${query.substring(0, 50)}..." → ${taskType} (${duration}ms)`);
@@ -73,7 +79,10 @@ Responde SOLO con UNA palabra (la categoría): SIMPLE, RAG, BROWSER, NOTION_MCP 
 
   } catch (error: any) {
     console.error('[CLASSIFIER] Error clasificando tarea:', error.message);
-    // En caso de error, usar SIMPLE como fallback seguro
+    // En caso de error, verificar si contiene "Notion"
+    if (query.toLowerCase().includes('notion')) {
+      return 'NOTION_MCP';
+    }
     return 'SIMPLE';
   }
 }
