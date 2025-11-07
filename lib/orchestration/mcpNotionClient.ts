@@ -47,11 +47,13 @@ export async function initializeMCPNotionClient(
     }
 
     // Crear transporte STDIO que usa mcp-remote para conectarse al servicio remoto de Notion
+    // Usamos el binario instalado en node_modules en lugar de npx para mejor compatibilidad con Vercel
+    const mcpRemotePath = require.resolve('mcp-remote/dist/proxy.js');
+
     const transport = new StdioClientTransport({
-      command: 'npx',
+      command: 'node',
       args: [
-        '-y',
-        'mcp-remote',
+        mcpRemotePath,
         'https://mcp.notion.com/mcp'
       ],
       env: {
