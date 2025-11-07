@@ -71,7 +71,12 @@ export async function initializeMCPNotionClient(
       env: {
         ...process.env,
         // El token OAuth de Notion se pasa como variable de entorno
-        NOTION_ACCESS_TOKEN: notionAccessToken
+        NOTION_ACCESS_TOKEN: notionAccessToken,
+        // Configurar npm para usar /tmp (único directorio escribible en Vercel)
+        HOME: '/tmp',
+        NPM_CONFIG_CACHE: '/tmp/.npm',
+        XDG_CONFIG_HOME: '/tmp/.config',
+        XDG_DATA_HOME: '/tmp/.local/share'
       }
     });
     console.log(`[MCP] ✓ Transporte STDIO creado`);
