@@ -34,19 +34,19 @@ CATEGORÍAS DISPONIBLES:
 3. BROWSER: Navegar web, interactuar con páginas, hacer búsquedas en internet
    Ejemplos: "Navega a google.com", "Busca información sobre...", "Abre la página de..."
 
-4. NOTION_MCP: Crear, modificar, buscar o actualizar información en Notion (tareas complejas)
-   Ejemplos: "Crea una página en Notion sobre...", "Actualiza mi base de datos de proyectos"
-   NOTA: Usar solo para operaciones COMPLEJAS de Notion (crear páginas, búsquedas complejas)
+4. NOTION_MCP: CUALQUIER operación que mencione explícitamente "Notion"
+   Ejemplos: "Busca en Notion...", "Crea una página en Notion...", "Actualiza mi base de datos de Notion"
+   REGLA CRÍTICA: Si la query contiene la palabra "Notion", SIEMPRE clasifica como NOTION_MCP
 
 5. COMPLEX: Tareas que requieren múltiples herramientas o razonamiento profundo
    Ejemplos: "Busca información en web Y añádela a Notion", "Revisa mis correos Y crea tareas"
 
-REGLAS IMPORTANTES:
-- Si la pregunta es simple y el RAG_CONTEXT tiene la respuesta, clasifica como RAG (no SIMPLE)
-- Si menciona "añadir tarea" o "recuérdame", clasifica como SIMPLE (ya hay herramienta api.add_task_to_notion)
-- Si menciona URL o "navega" o "busca en internet", clasifica como BROWSER
-- Solo usa NOTION_MCP para operaciones complejas (crear páginas, buscar en bases de datos)
-- Solo usa COMPLEX si claramente necesita 2+ herramientas
+REGLAS IMPORTANTES (en orden de prioridad):
+1. Si la query contiene "Notion" (case-insensitive), SIEMPRE clasifica como NOTION_MCP
+2. Si menciona URL o "navega" o "busca en internet", clasifica como BROWSER
+3. Si menciona "añadir tarea" o "recuérdame" SIN mencionar Notion, clasifica como SIMPLE
+4. Si la pregunta es simple y el RAG_CONTEXT tiene la respuesta, clasifica como RAG
+5. Solo usa COMPLEX si claramente necesita 2+ herramientas DIFERENTES
 
 RAG_CONTEXT disponible:
 ${ragContext ? 'SÍ - hay información relevante en memoria' : 'NO - no hay información relevante'}
