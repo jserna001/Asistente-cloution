@@ -2,7 +2,8 @@
  * Cliente MCP para Notion
  * Proporciona acceso a las 15 herramientas de Notion vía Model Context Protocol
  *
- * Conexión: Usa el servicio remoto de Notion MCP via mcp-remote
+ * Conexión: Usa StreamableHTTP transport para conectarse directamente a https://mcp.notion.com/mcp
+ * Autenticación: Bearer token con el access token OAuth de Notion del usuario
  * Documentación: https://developers.notion.com/docs/get-started-with-mcp
  */
 
@@ -51,35 +52,27 @@ export async function initializeMCPNotionClient(
     // Dynamic imports para evitar análisis en build time
     console.log(`[MCP] Paso 1: Importando SDK de MCP dinámicamente...`);
     const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
-    const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+    const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
     console.log(`[MCP] ✓ SDK importado correctamente`);
 
-    // Crear transporte STDIO que usa mcp-remote para conectarse al servicio remoto de Notion
-    // Volvemos a usar npx para evitar que Turbopack analice mcp-remote
-    console.log(`[MCP] Paso 2: Creando transporte STDIO con npx...`);
-    console.log(`[MCP] - Command: npx`);
-    console.log(`[MCP] - Args: ['-y', 'mcp-remote@0.1.30', 'https://mcp.notion.com/mcp']`);
-    console.log(`[MCP] - NOTION_ACCESS_TOKEN env var: ${notionAccessToken ? 'SET' : 'NOT SET'}`);
+    // Crear transporte HTTP para conectarse directamente al servicio remoto de Notion
+    // Esto evita el flujo OAuth interactivo y funciona en serverless
+    console.log(`[MCP] Paso 2: Creando transporte StreamableHTTP...`);
+    console.log(`[MCP] - URL: https://mcp.notion.com/mcp`);
+    console.log(`[MCP] - Token de Notion: ${notionAccessToken ? 'PRESENTE' : 'AUSENTE'}`);
 
-    const transport = new StdioClientTransport({
-      command: 'npx',
-      args: [
-        '-y',
-        'mcp-remote@0.1.30',
-        'https://mcp.notion.com/mcp'
-      ],
-      env: {
-        ...process.env,
-        // El token OAuth de Notion se pasa como variable de entorno
-        NOTION_ACCESS_TOKEN: notionAccessToken,
-        // Configurar npm para usar /tmp (único directorio escribible en Vercel)
-        HOME: '/tmp',
-        NPM_CONFIG_CACHE: '/tmp/.npm',
-        XDG_CONFIG_HOME: '/tmp/.config',
-        XDG_DATA_HOME: '/tmp/.local/share'
+    const transport = new StreamableHTTPClientTransport(
+      new URL('https://mcp.notion.com/mcp'),
+      {
+        requestInit: {
+          headers: {
+            'Authorization': `Bearer ${notionAccessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
       }
-    });
-    console.log(`[MCP] ✓ Transporte STDIO creado`);
+    );
+    console.log(`[MCP] ✓ Transporte StreamableHTTP creado`);
 
     // Crear cliente MCP
     console.log(`[MCP] Paso 3: Creando cliente MCP...`);
