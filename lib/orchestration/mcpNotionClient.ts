@@ -6,21 +6,20 @@
  * Documentación: https://developers.notion.com/docs/get-started-with-mcp
  */
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-
 // Cache de clientes MCP por usuario (para soportar múltiples usuarios con diferentes tokens)
-const mcpClients = new Map<string, Client>();
+const mcpClients = new Map<any, any>();
 const initializingClients = new Set<string>();
 
 /**
  * Inicializa el cliente MCP de Notion para un usuario específico
  * Ahora usa el servicio remoto de Notion: https://mcp.notion.com/mcp
+ *
+ * Usa dynamic imports para evitar que Turbopack analice mcp-remote en build time
  */
 export async function initializeMCPNotionClient(
   userId: string,
   notionAccessToken: string
-): Promise<Client> {
+): Promise<any> {
   // Verificar si ya existe un cliente para este usuario
   const existingClient = mcpClients.get(userId);
   if (existingClient) {
@@ -46,14 +45,17 @@ export async function initializeMCPNotionClient(
       throw new Error('Token de acceso de Notion requerido para MCP');
     }
 
-    // Crear transporte STDIO que usa mcp-remote para conectarse al servicio remoto de Notion
-    // Usamos el binario instalado en node_modules en lugar de npx para mejor compatibilidad con Vercel
-    const mcpRemotePath = require.resolve('mcp-remote/dist/proxy.js');
+    // Dynamic imports para evitar análisis en build time
+    const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+    const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
 
+    // Crear transporte STDIO que usa mcp-remote para conectarse al servicio remoto de Notion
+    // Volvemos a usar npx para evitar que Turbopack analice mcp-remote
     const transport = new StdioClientTransport({
-      command: 'node',
+      command: 'npx',
       args: [
-        mcpRemotePath,
+        '-y',
+        'mcp-remote@0.1.30',
         'https://mcp.notion.com/mcp'
       ],
       env: {
