@@ -6,13 +6,16 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { TaskType } from './types';
 
-const geminiApiKey = process.env.GEMINI_API_KEY!;
-if (!geminiApiKey) {
-  throw new Error('Falta la variable de entorno GEMINI_API_KEY.');
-}
+// Lazy loading del modelo para evitar errores al importar el módulo
+function getClassifierModel() {
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (!geminiApiKey) {
+    throw new Error('Falta la variable de entorno GEMINI_API_KEY.');
+  }
 
-const genAI = new GoogleGenerativeAI(geminiApiKey);
-const classifierModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+  const genAI = new GoogleGenerativeAI(geminiApiKey);
+  return genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+}
 
 /**
  * Clasifica una consulta del usuario en un tipo de tarea
@@ -57,6 +60,7 @@ Consulta del usuario:
 Responde SOLO con UNA palabra (la categoría): SIMPLE, RAG, BROWSER, NOTION_MCP o COMPLEX`;
 
   try {
+    const classifierModel = getClassifierModel();
     const result = await classifierModel.generateContent(classificationPrompt);
     const classification = result.response.text().trim().toUpperCase();
 
