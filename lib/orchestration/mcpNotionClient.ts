@@ -2,7 +2,8 @@
  * Cliente MCP para Notion
  * Proporciona acceso a las 15 herramientas de Notion vía Model Context Protocol
  *
- * Conexión: Usa StreamableHTTP transport para conectarse directamente a https://mcp.notion.com/mcp
+ * Conexión: Usa StreamableHTTP transport para conectarse al wrapper MCP en Dokku
+ * Wrapper: notion-mcp-wrapper desplegado en servidor Dokku
  * Autenticación: Bearer token con el access token OAuth de Notion del usuario
  * Documentación: https://developers.notion.com/docs/get-started-with-mcp
  */
@@ -55,17 +56,21 @@ export async function initializeMCPNotionClient(
     const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
     console.log(`[MCP] ✓ SDK importado correctamente`);
 
-    // Crear transporte HTTP para conectarse directamente al servicio remoto de Notion
-    // Esto evita el flujo OAuth interactivo y funciona en serverless
+    // Crear transporte HTTP para conectarse al wrapper MCP en Dokku
+    // El wrapper maneja múltiples usuarios y sus tokens OAuth
+    const mcpWrapperUrl = process.env.NOTION_MCP_WRAPPER_URL || 'http://localhost:3002/mcp';
+
     console.log(`[MCP] Paso 2: Creando transporte StreamableHTTP...`);
-    console.log(`[MCP] - URL: https://mcp.notion.com/mcp`);
+    console.log(`[MCP] - URL: ${mcpWrapperUrl}`);
+    console.log(`[MCP] - User ID: ${userId.substring(0, 8)}`);
     console.log(`[MCP] - Token de Notion: ${notionAccessToken ? 'PRESENTE' : 'AUSENTE'}`);
 
     const transport = new StreamableHTTPClientTransport(
-      new URL('https://mcp.notion.com/mcp'),
+      new URL(mcpWrapperUrl),
       {
         requestInit: {
           headers: {
+            'X-User-Id': userId,
             'Authorization': `Bearer ${notionAccessToken}`,
             'Content-Type': 'application/json'
           }

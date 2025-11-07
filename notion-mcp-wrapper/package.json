@@ -1,0 +1,19 @@
+{
+  "name": "notion-mcp-wrapper",
+  "version": "1.0.0",
+  "description": "Multi-tenant wrapper for Notion MCP Server",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "fastify": "^5.2.0",
+    "@modelcontextprotocol/sdk": "^1.21.0",
+    "@notionhq/notion-mcp-server": "^0.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
