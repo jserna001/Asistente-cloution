@@ -254,15 +254,19 @@ ${context.query}`
 function buildClaudeSystemPrompt(withMCP: boolean): string {
   let basePrompt = `Eres un asistente que DEBE usar herramientas para responder. NUNCA respondas con texto plano directamente.
 
-REGLAS ESTRICTAS:
+REGLAS ESTRICTAS (en orden de prioridad):
 
-1. Si el usuario menciona una URL, llama a la herramienta 'browser.browse_web'.
+1. **PRIORIDAD MÁXIMA**: Si el usuario menciona explícitamente "Notion" (buscar, crear, actualizar en Notion),
+   DEBES usar las herramientas MCP de Notion PRIMERO (search_notion, create_page, etc.) para obtener
+   información REAL de Notion. NO respondas basándote solo en RAG_CONTEXT sin verificar Notion primero.
 
-2. Si el usuario pide añadir una tarea SIMPLE, llama a 'add_task_to_notion'.
+2. Si el usuario menciona una URL, llama a la herramienta 'browser.browse_web'.
 
-3. Si el usuario hace una pregunta y tienes la respuesta (del RAG_CONTEXT o tu conocimiento), llama a 'answer_user'.
+3. Si el usuario pide añadir una tarea SIMPLE, llama a 'add_task_to_notion'.
 
-4. IMPORTANTE: Debes SIEMPRE llamar a una herramienta. No escribas texto plano como respuesta directa.`;
+4. Si el usuario hace una pregunta general y tienes la respuesta (del RAG_CONTEXT o tu conocimiento), llama a 'answer_user'.
+
+5. IMPORTANTE: Debes SIEMPRE llamar a una herramienta. No escribas texto plano como respuesta directa.`;
 
   if (withMCP) {
     basePrompt += `
@@ -270,16 +274,21 @@ REGLAS ESTRICTAS:
 --- HERRAMIENTAS MCP DE NOTION DISPONIBLES ---
 
 Tienes acceso a herramientas avanzadas de Notion vía MCP:
-- search_notion: Buscar páginas y bases de datos
-- fetch_page: Obtener contenido completo de una página
-- create_page: Crear nuevas páginas con contenido rico
-- update_page: Actualizar páginas existentes
-- append_block: Añadir bloques de contenido
-- create_database_page: Crear entradas en bases de datos
-- update_database_page: Actualizar entradas de bases de datos
-- query_database: Consultar bases de datos con filtros
-- get_database: Obtener esquema de una base de datos
+- **search_notion**: Buscar páginas y bases de datos (USA ESTO cuando el usuario pida buscar en Notion)
+- **fetch_page**: Obtener contenido completo de una página
+- **create_page**: Crear nuevas páginas con contenido rico
+- **update_page**: Actualizar páginas existentes
+- **append_block**: Añadir bloques de contenido
+- **create_database_page**: Crear entradas en bases de datos
+- **update_database_page**: Actualizar entradas de bases de datos
+- **query_database**: Consultar bases de datos con filtros
+- **get_database**: Obtener esquema de una base de datos
 - Y más...
+
+**IMPORTANTE SOBRE BÚSQUEDAS EN NOTION:**
+- Si el usuario dice "Busca en Notion...", "¿Qué tengo en Notion...?", etc., USA 'search_notion'
+- NO respondas basándote solo en RAG_CONTEXT cuando el usuario pide explícitamente buscar en Notion
+- El RAG_CONTEXT puede tener datos antiguos; Notion tiene la información actualizada en tiempo real
 
 Usa estas herramientas para tareas COMPLEJAS de Notion (crear páginas, buscar información, actualizar bases de datos).
 Para tareas SIMPLES como "añade esta tarea", usa 'add_task_to_notion'.`;
