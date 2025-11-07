@@ -188,16 +188,25 @@ ${context.query}`
             );
           } else {
             // Asumir que es una herramienta MCP de Notion
+            console.log(`[CLAUDE] Herramienta MCP detectada: ${toolName}`);
             if (!notionAccessToken) {
+              console.error(`[CLAUDE] ✗ Usuario no tiene token de Notion`);
               toolResult = 'Error: Usuario no tiene Notion conectado. Debe conectar Notion en /settings';
             } else {
-              const mcpResult = await executeMCPNotionTool(
-                context.userId,
-                notionAccessToken,
-                toolName,
-                toolArgs as any
-              );
-              toolResult = JSON.stringify(mcpResult);
+              console.log(`[CLAUDE] Ejecutando herramienta MCP: ${toolName}`);
+              try {
+                const mcpResult = await executeMCPNotionTool(
+                  context.userId,
+                  notionAccessToken,
+                  toolName,
+                  toolArgs as any
+                );
+                console.log(`[CLAUDE] ✓ Resultado MCP obtenido:`, mcpResult);
+                toolResult = JSON.stringify(mcpResult);
+              } catch (mcpError: any) {
+                console.error(`[CLAUDE] ✗ Error ejecutando MCP tool:`, mcpError);
+                toolResult = `Error ejecutando herramienta de Notion: ${mcpError.message}`;
+              }
             }
           }
         } catch (error: any) {
