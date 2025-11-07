@@ -16,15 +16,20 @@ const CIPHER_ENCODING = 'hex';
 const KEY_ENCODING_FROM_ENV = 'base64'; // Usamos Base64 de .env
 const KEY_LENGTH_BYTES = 32;
 
-const encryptionKey = process.env.ENCRYPTION_KEY!;
-if (!encryptionKey) {
-  throw new Error('ENCRYPTION_KEY no está definida en .env.local');
-}
+// Función lazy para obtener y validar la key solo cuando se necesita
+function getEncryptionKey(): Buffer {
+  const encryptionKey = process.env.ENCRYPTION_KEY;
+  if (!encryptionKey) {
+    throw new Error('ENCRYPTION_KEY no está definida en .env.local');
+  }
 
-const key = Buffer.from(encryptionKey, KEY_ENCODING_FROM_ENV);
+  const key = Buffer.from(encryptionKey, KEY_ENCODING_FROM_ENV);
 
-if (key.length !== KEY_LENGTH_BYTES) {
-  throw new Error(`ENCRYPTION_KEY tiene una longitud incorrecta. Debe ser una clave Base64 de 32 bytes.`);
+  if (key.length !== KEY_LENGTH_BYTES) {
+    throw new Error(`ENCRYPTION_KEY tiene una longitud incorrecta. Debe ser una clave Base64 de 32 bytes.`);
+  }
+
+  return key;
 }
 // --- Fin de la Validación ---
 
@@ -35,7 +40,7 @@ if (key.length !== KEY_LENGTH_BYTES) {
  */
 export function encryptToken(text: string): string {
   const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, key, iv);
+  const cipher = createCipheriv(ALGORITHM, getEncryptionKey(), iv);
 
   let encrypted = cipher.update(text, TEXT_ENCODING, CIPHER_ENCODING);
   encrypted += cipher.final(CIPHER_ENCODING);
@@ -56,7 +61,7 @@ export function encryptTokenToObject(text: string): {
   auth_tag: string;
 } {
   const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, key, iv);
+  const cipher = createCipheriv(ALGORITHM, getEncryptionKey(), iv);
 
   let encrypted = cipher.update(text, TEXT_ENCODING, CIPHER_ENCODING);
   encrypted += cipher.final(CIPHER_ENCODING);
@@ -86,7 +91,7 @@ export function decryptToken(encryptedText: string): string {
     const iv = Buffer.from(ivHex, CIPHER_ENCODING);
     const authTag = Buffer.from(authTagHex, CIPHER_ENCODING);
 
-    const decipher = createDecipheriv(ALGORITHM, key, iv);
+    const decipher = createDecipheriv(ALGORITHM, getEncryptionKey(), iv);
     decipher.setAuthTag(authTag);
 
     let decrypted = decipher.update(encryptedData, CIPHER_ENCODING, TEXT_ENCODING);

@@ -1,6 +1,12 @@
-// Carga las variables de entorno desde .env.local
+// Carga las variables de entorno desde .env.local ANTES de cualquier import
 import { config } from 'dotenv';
 config({ path: './.env.local' });
+
+// Esperar a que dotenv se cargue completamente
+if (!process.env.ENCRYPTION_KEY) {
+  console.error('Error: ENCRYPTION_KEY no está definida. Asegúrate de que .env.local existe y tiene todas las variables.');
+  process.exit(1);
+}
 
 import { createClient } from '@supabase/supabase-js';
 import { decryptToken } from '../lib/tokenService';
@@ -22,17 +28,17 @@ async function main() {
   try {
     // 1. Validar y obtener las variables de entorno.
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
     const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
     const geminiApiKey = process.env.GEMINI_API_KEY;
 
-    if (!supabaseUrl || !supabaseAnonKey || !googleClientId || !googleClientSecret || !geminiApiKey) {
+    if (!supabaseUrl || !supabaseServiceKey || !googleClientId || !googleClientSecret || !geminiApiKey) {
       throw new Error('Faltan una o más variables de entorno críticas.');
     }
 
-    // 2. Inicializar clientes.
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    // 2. Inicializar clientes (usando SERVICE_ROLE_KEY para bypassar RLS).
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const genAI = new GoogleGenerativeAI(geminiApiKey);
     const oauth2Client = new google.auth.OAuth2(googleClientId, googleClientSecret);
     console.log('Clientes de Supabase, Google AI y OAuth inicializados.');

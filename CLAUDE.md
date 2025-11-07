@@ -5,6 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 **asistente-ia-nuevo** is a personal AI assistant application built with **Next.js 16** and **TypeScript 5.9**, featuring:
+- **Multi-model orchestration** (Gemini Flash/Pro + Claude Sonnet for optimal cost/performance)
+- **Model Context Protocol (MCP)** integration for Notion (15 native tools)
 - Multi-service integration (Google, Notion, Gmail, Calendar)
 - ReAct agent pattern for multi-step task reasoning
 - RAG (Retrieval-Augmented Generation) for semantic memory
@@ -43,7 +45,7 @@ npx tsx scripts/test-notion-write.ts     # Notion write operations testing
 
 ## Architecture Overview
 
-### High-Level Flow
+### High-Level Flow (NEW: Multi-Model Orchestration)
 
 ```
 User Input
@@ -54,16 +56,25 @@ POST /api/chat with Bearer token
     ↓
 RAG Service (vector search in document_chunks table)
     ↓
-Gemini 2.5 Pro ReAct Agent Loop (max 5 iterations)
-    ├─ Gemini analyzes query + RAG context
-    ├─ Decides which tool to call:
-    │   ├─ browser.* tools (calls browser-service microservice)
-    │   ├─ api.add_task_to_notion (Notion integration)
-    │   └─ Return answer directly (from RAG)
-    └─ Executes tool and continues loop
+Task Classifier (Gemini Flash - fast & cheap routing)
+    ├─ Analyzes query + RAG context
+    ├─ Classifies as: SIMPLE | RAG | BROWSER | NOTION_MCP | COMPLEX
+    └─ Selects optimal model
     ↓
-Response to user
+    ┌──────────────────┼──────────────────┐
+    ↓                  ↓                  ↓
+Gemini Flash     Gemini Pro        Claude Sonnet
+(Simple tasks)   (RAG+Browser)     (Notion MCP+Complex)
+    ↓                  ↓                  ↓
+ReAct Loop       ReAct Loop        ReAct Loop + MCP
+    ↓                  ↓                  ↓
+    └──────────────────┴──────────────────┘
+                      ↓
+              Response to user
+              + Metadata (model used, task type, timing)
 ```
+
+**Cost Optimization:** 56% savings by routing simple tasks to cheaper models
 
 ### Directory Structure
 
@@ -76,11 +87,19 @@ Response to user
 └── page.tsx                  # Main chat interface (Client Component)
 
 /lib                          # Shared utilities
+├── /orchestration/           # NEW: Multi-model orchestration system
+│   ├── types.ts              # Shared types (TaskType, ModelConfig, etc.)
+│   ├── taskClassifier.ts     # Gemini Flash router for task classification
+│   ├── modelOrchestrator.ts  # Central orchestrator
+│   ├── geminiExecutor.ts     # Gemini Flash/Pro executor
+│   ├── claudeExecutor.ts     # Claude Sonnet executor + MCP
+│   ├── mcpNotionClient.ts    # Notion MCP client (15 tools)
+│   └── toolConverters.ts     # Gemini ↔ Claude format converters
 ├── supabaseClient.ts         # Supabase client factory
 ├── googleAuth.ts             # Google OAuth config
 ├── browserService.ts         # Browser automation orchestrator
 ├── ragService.ts             # RAG (vector search) service
-├── notionActions.ts          # Notion API integration
+├── notionActions.ts          # Notion API integration (fallback to MCP)
 ├── calendarActions.ts        # Google Calendar operations
 ├── encryption.ts             # AES-256-GCM encrypt/decrypt
 
@@ -186,16 +205,24 @@ The agent operates under a system instruction that defines:
 ## Environment Variables (.env.local)
 
 ```
+# AI Models
+GEMINI_API_KEY                      # Google Generative AI API key (ai.google.dev)
+ANTHROPIC_API_KEY                   # NEW: Claude API key (console.anthropic.com) - Required for MCP Notion
+
+# Authentication & Security
 ENCRYPTION_KEY                      # 32-byte Base64-encoded AES key
 GOOGLE_CLIENT_ID                    # Google Cloud OAuth app ID
 GOOGLE_CLIENT_SECRET                # Google Cloud OAuth app secret
-GEMINI_API_KEY                      # Google Generative AI API key
+
+# Integrations
 NOTION_INTERNAL_INTEGRATION_TOKEN   # Notion workspace integration token
+NOTION_CLIENT_ID                    # Notion OAuth app ID (for future flows)
+NOTION_CLIENT_SECRET                # Notion OAuth app secret (for future flows)
+
+# Database
 NEXT_PUBLIC_SUPABASE_URL            # Supabase project URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY       # Supabase public/anonymous key
 SUPABASE_SERVICE_ROLE_KEY           # Supabase admin key (server-side only)
-NOTION_CLIENT_ID                    # Notion OAuth app ID (for future flows)
-NOTION_CLIENT_SECRET                # Notion OAuth app secret (for future flows)
 ```
 
 ## Development Setup

@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "-": "^0.0.1",
+    "@anthropic-ai/sdk": "^0.68.0",
     "@google/generative-ai": "^0.15.0",
+    "@modelcontextprotocol/sdk": "^1.21.0",
     "@notionhq/client": "^5.3.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.78.0",
@@ -19,6 +21,7 @@
     "google-auth-library": "^10.5.0",
     "googleapis": "^164.1.0",
     "gsap": "^3.13.0",
+    "mcp-remote": "^0.1.30",
     "next": "16.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",

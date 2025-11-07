@@ -30,7 +30,7 @@ export async function executeRAG(
   // Paso 2: Buscar en Supabase usando el cliente y userId proporcionados
   const { data: chunks, error } = await supabase.rpc('match_document_chunks', {
     query_embedding: queryVector,
-    match_threshold: 0.5, // Reducido de 0.7 a 0.5 para encontrar más resultados
+    match_threshold: 0.4, // Reducido a 0.4 para búsquedas más flexibles
     match_count: 10, // Aumentado de 5 a 10 para obtener más contexto
     user_id_input: userId // ¡La RLS se aplica aquí!
   });
