@@ -3,38 +3,64 @@
 import { createSupabaseBrowserClient } from '../../lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
+import { GoogleIcon, BotIcon, SparklesIcon } from '../../components/Icons';
 import { gsap } from 'gsap';
-
-// --- Iconos y Logo ---
-const AppLogo = () => (
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#E5E5E7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-);
-
-const GoogleIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '12px' }}>
-    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-  </svg>
-);
 
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
-  const cardRef = useRef(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const logoRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const featuresRef = useRef<HTMLDivElement>(null);
 
-  // Animación de entrada
+  // Animaciones GSAP de entrada
   useEffect(() => {
-    gsap.from(cardRef.current, {
-      duration: 0.8,
-      opacity: 0,
-      y: 50,
-      scale: 0.95,
-      ease: 'power3.out'
+    const ctx = gsap.context(() => {
+      // Timeline principal
+      const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+
+      // Animación del logo con efecto de rebote
+      tl.from(logoRef.current, {
+        scale: 0,
+        rotation: -180,
+        duration: 0.8,
+        ease: 'back.out(1.7)',
+      });
+
+      // Animación del header con fade y slide
+      tl.from(headerRef.current, {
+        opacity: 0,
+        y: 20,
+        duration: 0.6,
+      }, '-=0.4');
+
+      // Animación del botón con scale
+      tl.from(buttonRef.current, {
+        opacity: 0,
+        scale: 0.8,
+        duration: 0.5,
+      }, '-=0.3');
+
+      // Animación de las features (una por una)
+      tl.from(featuresRef.current?.children || [], {
+        opacity: 0,
+        x: -20,
+        duration: 0.4,
+        stagger: 0.1,
+      }, '-=0.3');
+
+      // Animación del card container
+      gsap.from(cardRef.current, {
+        opacity: 0,
+        y: 50,
+        duration: 0.8,
+        ease: 'power3.out',
+      });
     });
+
+    return () => ctx.revert();
   }, []);
 
   // Redirige si ya hay sesión
@@ -54,76 +80,277 @@ export default function LoginPage() {
     window.location.href = '/api/auth/google/redirect';
   };
 
-  const styles = {
-    page: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100vh',
-      color: '#E5E5E7',
-      background: 'linear-gradient(135deg, #1a1a1a 25%, #121212 25%, #121212 50%, #1a1a1a 50%, #1a1a1a 75%, #121212 75%, #121212 100%)',
-      backgroundSize: '80px 80px',
-      overflow: 'hidden'
-    } as React.CSSProperties,
-    card: {
-      padding: '48px',
-      borderRadius: '24px',
-      textAlign: 'center',
-      backgroundColor: 'rgba(28, 28, 30, 0.75)',
-      backdropFilter: 'blur(20px) saturate(180%)',
-      border: '1px solid rgba(255, 255, 255, 0.125)',
-      boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
-      maxWidth: '400px',
-      width: '90%'
-    } as React.CSSProperties,
-    logoContainer: {
-      marginBottom: '24px'
-    },
-    title: {
-      fontSize: '2rem',
-      fontWeight: 600,
-      marginBottom: '8px'
-    },
-    subtitle: {
-      fontSize: '1rem',
-      color: '#8E8E93',
-      marginBottom: '32px'
-    },
-    button: {
-      fontSize: '1rem',
-      fontWeight: 500,
-      padding: '12px 24px',
-      borderRadius: '12px',
-      border: 'none',
-      backgroundColor: '#fff',
-      color: '#121212',
-      cursor: 'pointer',
-      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      width: '100%',
-      boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
-    } as React.CSSProperties,
-  };
-
   return (
-    <div style={styles.page}>
-      <div ref={cardRef} style={styles.card}>
-        <div style={styles.logoContainer}>
-          <AppLogo />
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '100vh',
+      backgroundColor: 'var(--bg-primary)',
+      backgroundImage: `
+        radial-gradient(circle at 20% 50%, rgba(14, 165, 233, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.15) 0%, transparent 50%)
+      `,
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Decorative background elements */}
+      <div style={{
+        position: 'absolute',
+        top: '-10%',
+        right: '-5%',
+        width: '500px',
+        height: '500px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(14, 165, 233, 0.1) 0%, transparent 70%)',
+        filter: 'blur(60px)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: '-10%',
+        left: '-5%',
+        width: '500px',
+        height: '500px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%)',
+        filter: 'blur(60px)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Login Card */}
+      <div
+        ref={cardRef}
+        style={{
+          maxWidth: '420px',
+          width: '100%',
+          margin: '0 var(--space-4)',
+        }}
+      >
+        {/* Glass Card */}
+        <div style={{
+          backgroundColor: 'var(--bg-secondary)',
+          border: '1px solid var(--border-primary)',
+          borderRadius: 'var(--radius-xl)',
+          padding: 'var(--space-12)',
+          backdropFilter: 'blur(20px)',
+          boxShadow: 'var(--shadow-xl)',
+        }}>
+          {/* Logo & Icon */}
+          <div
+            ref={logoRef}
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              marginBottom: 'var(--space-8)',
+            }}
+          >
+            <div style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <div style={{
+                position: 'absolute',
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(139, 92, 246, 0.2))',
+                filter: 'blur(20px)',
+              }} />
+              <div style={{
+                position: 'relative',
+                width: '64px',
+                height: '64px',
+                borderRadius: 'var(--radius-xl)',
+                background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: 'var(--shadow-glow-blue)',
+              }}>
+                <BotIcon size={32} color="white" />
+              </div>
+            </div>
+          </div>
+
+          {/* Header */}
+          <div
+            ref={headerRef}
+            style={{
+              textAlign: 'center',
+              marginBottom: 'var(--space-10)',
+            }}
+          >
+            <h1 style={{
+              fontSize: 'var(--text-4xl)',
+              fontWeight: 'var(--font-bold)',
+              marginBottom: 'var(--space-3)',
+              background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}>
+              Asistente Cloution
+            </h1>
+            <p style={{
+              fontSize: 'var(--text-base)',
+              color: 'var(--text-secondary)',
+              marginBottom: 'var(--space-2)',
+            }}>
+              Tu asistente personal impulsado por IA
+            </p>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 'var(--space-2)',
+              fontSize: 'var(--text-sm)',
+              color: 'var(--text-tertiary)',
+            }}>
+              <SparklesIcon size={14} />
+              <span>Multi-modelo • RAG • Notion • Gmail</span>
+            </div>
+          </div>
+
+          {/* Google Login Button */}
+          <button
+            ref={buttonRef}
+            onClick={handleLoginWithGoogle}
+            style={{
+              width: '100%',
+              padding: 'var(--space-4)',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border-primary)',
+              backgroundColor: 'var(--bg-elevated)',
+              color: 'var(--text-primary)',
+              fontSize: 'var(--text-base)',
+              fontWeight: 'var(--font-semibold)',
+              cursor: 'pointer',
+              transition: 'all var(--transition-base)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 'var(--space-3)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+              e.currentTarget.style.borderColor = 'var(--border-focus)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.2)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-elevated)';
+              e.currentTarget.style.borderColor = 'var(--border-primary)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            <GoogleIcon size={20} />
+            Iniciar sesión con Google
+          </button>
+
+          {/* Divider */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-3)',
+            margin: 'var(--space-8) 0',
+          }}>
+            <div style={{
+              flex: 1,
+              height: '1px',
+              backgroundColor: 'var(--border-primary)',
+            }} />
+            <span style={{
+              fontSize: 'var(--text-sm)',
+              color: 'var(--text-tertiary)',
+            }}>
+              ¿Por qué Google?
+            </span>
+            <div style={{
+              flex: 1,
+              height: '1px',
+              backgroundColor: 'var(--border-primary)',
+            }} />
+          </div>
+
+          {/* Features List */}
+          <div
+            ref={featuresRef}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-3)',
+            }}
+          >
+            {[
+              { text: 'Acceso a Gmail y Calendar', color: 'var(--accent-blue)' },
+              { text: 'Sincronización automática de datos', color: 'var(--accent-purple)' },
+              { text: 'Login seguro y sin contraseñas', color: 'var(--accent-green)' },
+            ].map((feature, index) => (
+              <div
+                key={index}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-2)',
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <div style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: feature.color,
+                  boxShadow: `0 0 8px ${feature.color}`,
+                }} />
+                {feature.text}
+              </div>
+            ))}
+          </div>
         </div>
-        <h1 style={styles.title}>Asistente Personal</h1>
-        <p style={styles.subtitle}>Inicia sesión para continuar</p>
-        <button 
-          onClick={handleLoginWithGoogle} 
-          style={styles.button}
-          onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-          onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0px)'}
-        >
-          <GoogleIcon />
-          Iniciar sesión con Google
-        </button>
+
+        {/* Footer */}
+        <div style={{
+          marginTop: 'var(--space-6)',
+          textAlign: 'center',
+          fontSize: 'var(--text-sm)',
+          color: 'var(--text-tertiary)',
+        }}>
+          <p>
+            Al iniciar sesión, aceptas nuestros{' '}
+            <a
+              href="#"
+              style={{
+                color: 'var(--accent-blue)',
+                textDecoration: 'none',
+                transition: 'color var(--transition-fast)',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-blue-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--accent-blue)'}
+            >
+              términos de servicio
+            </a>
+            {' '}y{' '}
+            <a
+              href="#"
+              style={{
+                color: 'var(--accent-blue)',
+                textDecoration: 'none',
+                transition: 'color var(--transition-fast)',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-blue-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--accent-blue)'}
+            >
+              política de privacidad
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

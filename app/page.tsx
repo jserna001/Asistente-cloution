@@ -3,11 +3,131 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '../lib/supabaseClient';
+import {
+  BotIcon,
+  ZapIcon,
+  BrainIcon,
+  CopyIcon,
+  CheckIcon,
+  SettingsIcon,
+  LogOutIcon,
+  CalendarIcon,
+  SendIcon,
+  SpinnerIcon,
+} from '../components/Icons';
 
-// Definimos los tipos de mensajes
+// Tipos de mensajes mejorados
+interface MessageMetadata {
+  modelUsed?: string;
+  taskType?: string;
+  executionTimeMs?: number;
+}
+
 interface Message {
   sender: 'user' | 'ai';
   text: string;
+  metadata?: MessageMetadata;
+  timestamp: number;
+}
+
+// Componente de Badge de Modelo
+function ModelBadge({ model }: { model: string }) {
+  const getModelInfo = (modelName: string) => {
+    if (modelName.includes('flash')) {
+      return {
+        icon: <ZapIcon size={14} />,
+        label: 'Gemini Flash',
+        color: 'var(--model-gemini-flash)'
+      };
+    } else if (modelName.includes('gemini-2.5-pro')) {
+      return {
+        icon: <BrainIcon size={14} />,
+        label: 'Gemini Pro',
+        color: 'var(--model-gemini-pro)'
+      };
+    } else if (modelName.includes('claude')) {
+      return {
+        icon: <BotIcon size={14} />,
+        label: 'Claude Sonnet',
+        color: 'var(--model-claude)'
+      };
+    }
+    return {
+      icon: <BrainIcon size={14} />,
+      label: model,
+      color: 'var(--text-secondary)'
+    };
+  };
+
+  const { icon, label, color } = getModelInfo(model);
+
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 'var(--space-1)',
+      padding: 'var(--space-1) var(--space-2)',
+      borderRadius: 'var(--radius-full)',
+      backgroundColor: `${color}15`,
+      color: color,
+      fontSize: 'var(--text-xs)',
+      fontWeight: 'var(--font-medium)',
+      border: `1px solid ${color}30`,
+    }}>
+      {icon}
+      {label}
+    </span>
+  );
+}
+
+// Componente de Botón Copiar
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      style={{
+        padding: 'var(--space-1) var(--space-2)',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border-primary)',
+        backgroundColor: 'transparent',
+        color: 'var(--text-secondary)',
+        fontSize: 'var(--text-xs)',
+        cursor: 'pointer',
+        transition: 'all var(--transition-fast)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-1)',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+        e.currentTarget.style.color = 'var(--text-primary)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = 'transparent';
+        e.currentTarget.style.color = 'var(--text-secondary)';
+      }}
+    >
+      {copied ? (
+        <>
+          <CheckIcon size={14} />
+          Copiado
+        </>
+      ) : (
+        <>
+          <CopyIcon size={14} />
+          Copiar
+        </>
+      )}
+    </button>
+  );
 }
 
 function ChatUI() {
@@ -17,22 +137,15 @@ function ChatUI() {
   const [authStatus, setAuthStatus] = useState<string | null>(null);
   const [dailySummary, setDailySummary] = useState<string | null>(null);
   const [summaryDate, setSummaryDate] = useState<string | null>(null);
-  
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
 
-  /**
-   * Carga el resumen diario para el USUARIO AUTENTICADO.
-   * RLS (Row Level Security) en Supabase se encarga de filtrar
-   * los resúmenes basándose en el usuario logueado.
-   * Si no hay resumen de hoy, lo genera automáticamente.
-   */
+  // Cargar resumen diario
   async function loadDailySummary() {
     console.log('Cargando resumen diario...');
 
-    // El cliente de Supabase (browser) usa automáticamente el token
-    // de sesión para autenticar esta solicitud. RLS lo filtrará.
     const { data, error } = await supabase
       .from('daily_summaries')
       .select('summary_text, created_at')
@@ -52,7 +165,6 @@ function ChatUI() {
       const isToday = date.toDateString() === today.toDateString();
 
       if (isToday) {
-        // Ya existe un resumen de hoy
         setDailySummary(data[0].summary_text);
         const formattedDate = date.toLocaleDateString('es-CO', {
           weekday: 'long',
@@ -62,9 +174,7 @@ function ChatUI() {
         });
         setSummaryDate(`Hoy, ${formattedDate}`);
       } else {
-        // El resumen es de otro día
         needsNewSummary = true;
-        // Mostrar el resumen viejo mientras se genera el nuevo
         setDailySummary(data[0].summary_text);
         const formattedDate = date.toLocaleDateString('es-CO', {
           weekday: 'long',
@@ -75,31 +185,23 @@ function ChatUI() {
         setSummaryDate(formattedDate);
       }
     } else {
-      // No hay ningún resumen
       needsNewSummary = true;
     }
 
-    // Si necesitamos un resumen nuevo, generarlo automáticamente
     if (needsNewSummary) {
       console.log('No hay resumen de hoy, generando uno nuevo...');
       await generateDailySummary();
     }
   }
 
-  /**
-   * Genera un resumen diario llamando al endpoint del cron.
-   * Esta función es llamada automáticamente si no hay resumen de hoy.
-   */
   async function generateDailySummary() {
     try {
-      // Obtener el token de sesión
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error || !session) {
         console.error('No se puede generar resumen: usuario no autenticado');
         return;
       }
 
-      // Llamar al endpoint del cron (requiere autenticación)
       const response = await fetch('/api/cron/daily-summary', {
         method: 'GET',
         headers: {
@@ -109,7 +211,6 @@ function ChatUI() {
 
       if (response.ok) {
         console.log('Resumen generado exitosamente, recargando...');
-        // Esperar 2 segundos para dar tiempo a que se guarde
         setTimeout(() => {
           loadDailySummary();
         }, 2000);
@@ -121,34 +222,30 @@ function ChatUI() {
     }
   }
 
-  // Efecto de carga inicial
   useEffect(() => {
-    // Comprobar estado de conexión (de la redirección de Notion)
     const status = searchParams.get('status');
     if (status === 'notion_connected') {
-      setAuthStatus('¡Conexión con Notion exitosa');
+      setAuthStatus('¡Conexión con Notion exitosa!');
     }
 
-    // Cargar el resumen diario
     loadDailySummary();
   }, [searchParams]);
 
-  /**
-   * Maneja el envío del formulario de chat.
-   * Ahora envía el token de autenticación del usuario.
-   */
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!currentQuery.trim() || isLoading) return;
 
     const userQuery = currentQuery;
-    setMessages((prev) => [...prev, { sender: 'user', text: userQuery }]);
+    setMessages((prev) => [...prev, {
+      sender: 'user',
+      text: userQuery,
+      timestamp: Date.now()
+    }]);
     setCurrentQuery('');
     setIsLoading(true);
 
     let accessToken = '';
 
-    // 1. Obtener el token de sesión de Supabase
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error) throw error;
@@ -156,18 +253,21 @@ function ChatUI() {
       accessToken = session.access_token;
     } catch (error) {
       console.error('Error obteniendo la sesión:', error);
-      setMessages((prev) => [...prev, { sender: 'ai', text: 'Error: No pude verificar tu sesión. Por favor, inicia sesión de nuevo.' }]);
+      setMessages((prev) => [...prev, {
+        sender: 'ai',
+        text: 'Error: No pude verificar tu sesión. Por favor, inicia sesión de nuevo.',
+        timestamp: Date.now()
+      }]);
       setIsLoading(false);
       return;
     }
 
-    // 2. Enviar el token en el header "Authorization"
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`, // <-- ¡EL PASAPORTE
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ query: userQuery }),
       });
@@ -177,10 +277,19 @@ function ChatUI() {
       }
 
       const data = await response.json();
-      setMessages((prev) => [...prev, { sender: 'ai', text: data.answer }]);
+      setMessages((prev) => [...prev, {
+        sender: 'ai',
+        text: data.answer,
+        metadata: data.metadata,
+        timestamp: Date.now()
+      }]);
     } catch (error) {
       console.error('Error en la API de chat:', error);
-      setMessages((prev) => [...prev, { sender: 'ai', text: 'Lo siento, algo salió mal al contactar al asistente.' }]);
+      setMessages((prev) => [...prev, {
+        sender: 'ai',
+        text: 'Lo siento, algo salió mal al contactar al asistente.',
+        timestamp: Date.now()
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -192,85 +301,277 @@ function ChatUI() {
   };
 
   return (
-    <div className="chat-container">
-      <header className="chat-header">
-        <h1>Asistente Personal</h1>
-        <button onClick={() => router.push('/settings')} className="settings-button">Ajustes</button>
-        <button onClick={handleSignOut} className="signout-button">Cerrar Sesión</button>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100vh',
+      maxWidth: '900px',
+      margin: '0 auto',
+      backgroundColor: 'var(--bg-primary)',
+      color: 'var(--text-primary)',
+    }}>
+      {/* Header */}
+      <header style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 'var(--space-4) var(--space-6)',
+        borderBottom: '1px solid var(--border-primary)',
+        backgroundColor: 'var(--bg-secondary)',
+      }}>
+        <h1 style={{
+          fontSize: 'var(--text-2xl)',
+          fontWeight: 'var(--font-bold)',
+          background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-2)',
+        }}>
+          <BotIcon size={28} color="var(--accent-purple)" />
+          Asistente Cloution
+        </h1>
+        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <button
+            onClick={() => router.push('/settings')}
+            style={{
+              padding: 'var(--space-2) var(--space-4)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-primary)',
+              backgroundColor: 'var(--bg-tertiary)',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              fontSize: 'var(--text-sm)',
+              transition: 'all var(--transition-fast)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
+            }}
+          >
+            <SettingsIcon size={16} />
+            Ajustes
+          </button>
+          <button
+            onClick={handleSignOut}
+            style={{
+              padding: 'var(--space-2) var(--space-4)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--accent-red)',
+              backgroundColor: 'transparent',
+              color: 'var(--accent-red)',
+              cursor: 'pointer',
+              fontSize: 'var(--text-sm)',
+              transition: 'all var(--transition-fast)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
+            }}
+          >
+            <LogOutIcon size={16} />
+            Cerrar Sesión
+          </button>
+        </div>
       </header>
 
-      {/* Contenedor del Resumen Diario */}
+      {/* Resumen Diario */}
       {dailySummary && (
-        <div className="summary-container">
+        <div style={{
+          margin: 'var(--space-6)',
+          padding: 'var(--space-6)',
+          borderRadius: 'var(--radius-lg)',
+          background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(139, 92, 246, 0.1))',
+          border: '1px solid var(--border-primary)',
+        }} className="animate-slide-up">
           {summaryDate && (
             <div style={{
-              fontSize: '0.9rem',
-              color: '#8E8E93',
-              marginBottom: '12px',
-              fontWeight: '500'
+              fontSize: 'var(--text-sm)',
+              color: 'var(--text-secondary)',
+              marginBottom: 'var(--space-3)',
+              fontWeight: 'var(--font-medium)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
             }}>
-              📅 {summaryDate}
+              <CalendarIcon size={16} />
+              {summaryDate}
             </div>
           )}
-          <pre className="summary-text">{dailySummary}</pre>
+          <pre style={{
+            whiteSpace: 'pre-wrap',
+            fontFamily: 'var(--font-display)',
+            fontSize: 'var(--text-sm)',
+            lineHeight: 'var(--leading-relaxed)',
+            margin: 0,
+          }}>
+            {dailySummary}
+          </pre>
         </div>
       )}
-      
-      {/* Contenedor de Mensajes de Chat */}
-      <div className="messages-container">
+
+      {/* Mensajes */}
+      <div style={{
+        flex: 1,
+        padding: 'var(--space-6)',
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-4)',
+      }}>
         {messages.map((msg, index) => (
-          <div key={index} className={`message ${msg.sender}`}>
-            <p>{msg.text}</p>
+          <div
+            key={index}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start',
+              gap: 'var(--space-2)',
+            }}
+            className="animate-fade-in"
+          >
+            {/* Mensaje */}
+            <div style={{
+              padding: 'var(--space-4)',
+              borderRadius: 'var(--radius-lg)',
+              maxWidth: '80%',
+              backgroundColor: msg.sender === 'user' ? 'var(--accent-blue)' : 'var(--bg-secondary)',
+              color: msg.sender === 'user' ? 'white' : 'var(--text-primary)',
+              border: msg.sender === 'ai' ? '1px solid var(--border-primary)' : 'none',
+            }}>
+              <p style={{
+                whiteSpace: 'pre-wrap',
+                margin: 0,
+                lineHeight: 'var(--leading-relaxed)',
+              }}>
+                {msg.text}
+              </p>
+            </div>
+
+            {/* Metadata y acciones (solo para AI) */}
+            {msg.sender === 'ai' && msg.metadata && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                fontSize: 'var(--text-xs)',
+                color: 'var(--text-secondary)',
+              }}>
+                {msg.metadata.modelUsed && (
+                  <ModelBadge model={msg.metadata.modelUsed} />
+                )}
+                {msg.metadata.executionTimeMs && (
+                  <span style={{
+                    padding: 'var(--space-1) var(--space-2)',
+                    borderRadius: 'var(--radius-full)',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-1)',
+                  }}>
+                    <ZapIcon size={12} />
+                    {(msg.metadata.executionTimeMs / 1000).toFixed(1)}s
+                  </span>
+                )}
+                <CopyButton text={msg.text} />
+              </div>
+            )}
           </div>
         ))}
+
         {isLoading && (
-          <div className="message ai">
-            <p>Pensando...</p>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-2)',
+            padding: 'var(--space-4)',
+            borderRadius: 'var(--radius-lg)',
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border-primary)',
+            maxWidth: '80%',
+          }} className="animate-pulse">
+            <div style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--accent-blue)',
+            }} />
+            <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Pensando...</p>
           </div>
         )}
+
         {messages.length === 0 && !isLoading && (
-          <div className="message-placeholder">
-            {authStatus ? <p>{authStatus}</p> : <p>El historial de chat está vacío.</p>}
+          <div style={{
+            textAlign: 'center',
+            color: 'var(--text-secondary)',
+            marginTop: 'var(--space-16)',
+          }}>
+            {authStatus ? <p>{authStatus}</p> : <p>Escribe un mensaje para empezar</p>}
           </div>
         )}
       </div>
 
-      {/* Input de Chat */}
-      <form onSubmit={handleSubmit} className="chat-input-form">
+      {/* Input */}
+      <form onSubmit={handleSubmit} style={{
+        padding: 'var(--space-6)',
+        borderTop: '1px solid var(--border-primary)',
+        backgroundColor: 'var(--bg-secondary)',
+        display: 'flex',
+        gap: 'var(--space-3)',
+      }}>
         <input
           type="text"
           value={currentQuery}
           onChange={(e) => setCurrentQuery(e.target.value)}
           placeholder="Escribe tu pregunta..."
           disabled={isLoading}
+          style={{
+            flex: 1,
+            padding: 'var(--space-3)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-primary)',
+            backgroundColor: 'var(--bg-tertiary)',
+            color: 'var(--text-primary)',
+            fontSize: 'var(--text-base)',
+            outline: 'none',
+            transition: 'all var(--transition-fast)',
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = 'var(--accent-blue)';
+            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(14, 165, 233, 0.1)';
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border-primary)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
         />
-        <button type="submit" disabled={isLoading}>Enviar</button>
+        <button
+          type="submit"
+          disabled={isLoading || !currentQuery.trim()}
+          style={{
+            padding: 'var(--space-3) var(--space-6)',
+            borderRadius: 'var(--radius-md)',
+            border: 'none',
+            backgroundColor: isLoading || !currentQuery.trim() ? 'var(--bg-tertiary)' : 'var(--accent-blue)',
+            color: 'white',
+            fontSize: 'var(--text-base)',
+            fontWeight: 'var(--font-semibold)',
+            cursor: isLoading || !currentQuery.trim() ? 'not-allowed' : 'pointer',
+            transition: 'all var(--transition-fast)',
+            opacity: isLoading || !currentQuery.trim() ? 0.5 : 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-2)',
+          }}
+        >
+          {isLoading ? <SpinnerIcon size={16} /> : <SendIcon size={16} />}
+          Enviar
+        </button>
       </form>
-
-      {/* Estilos (CSS Básico) */}
-      <style jsx>{`
-        .chat-container { display: flex; flex-direction: column; height: 100vh; max-width: 800px; margin: 0 auto; background: #1c1c1c; color: white; border-radius: 8px; overflow: hidden; }
-        .chat-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #2a2a2a; border-bottom: 1px solid #333; }
-        .chat-header h1 { font-size: 1.25rem; margin: 0; }
-        .settings-button, .signout-button { background: #333; border: none; color: white; padding: 0.5rem 1rem; border-radius: 5px; cursor: pointer; }
-        .signout-button { background: #5a2a2a; }
-        .summary-container { background: #2a2a2a; padding: 1rem; margin: 1rem; border-radius: 8px; }
-        .summary-text { white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; line-height: 1.5; }
-        .messages-container { flex: 1; padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
-        .message { padding: 0.75rem 1rem; border-radius: 12px; max-width: 80%; }
-        .message.user { background: #0070f3; color: white; align-self: flex-end; }
-        .message.ai { background: #333; color: white; align-self: flex-start; }
-        .message.ai p { white-space: pre-wrap; }
-        .message-placeholder { text-align: center; color: #777; }
-        .chat-input-form { display: flex; padding: 1rem; background: #2a2a2a; border-top: 1px solid #333; }
-        .chat-input-form input { flex: 1; padding: 0.75rem; border: none; border-radius: 5px; background: #444; color: white; }
-        .chat-input-form button { padding: 0.75rem 1rem; margin-left: 0.5rem; background: #0070f3; color: white; border: none; border-radius: 5px; cursor: pointer; }
-      `}</style>
     </div>
   );
 }
 
-// Envolvemos el componente en Suspense para que useSearchParams() funcione
 export default function ChatPage() {
   return (
     <Suspense fallback={<div>Cargando...</div>}>

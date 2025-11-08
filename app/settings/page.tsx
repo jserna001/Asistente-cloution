@@ -4,30 +4,19 @@ import { useState, useEffect } from 'react';
 import { createSupabaseBrowserClient } from '../../lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-
-// --- Iconos ---
-const CheckmarkIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="#34D399" xmlns="http://www.w3.org/2000/svg">
-    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor"/>
-  </svg>
-);
-
-const GoogleIcon = () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-    </svg>
-);
-
-const NotionIcon = () => (
-    <svg width="24" height="24" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M25.75 10.3333H32.5V31.6667H25.75V10.3333Z" fill="#fff"/>
-        <path d="M7.5 8.33331C7.5 8.33331 15.8333 8.33331 17.5 8.33331C18.3333 8.33331 22.5 8.33331 22.5 12.5C22.5 16.6667 17.5 15.8333 17.5 15.8333L22.5 25C22.5 29.1667 18.3333 29.1667 17.5 29.1667C15.8333 29.1667 7.5 29.1667 7.5 29.1667V8.33331Z" fill="#fff"/>
-        <path d="M12.5 10.3333V26.6666" stroke="#000" strokeWidth="3.33333" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-);
+import {
+  GoogleIcon,
+  NotionIcon,
+  UserIcon,
+  SettingsIcon,
+  LogOutIcon,
+  CheckCircleIcon,
+  AlertIcon,
+  HomeIcon,
+  ClockIcon,
+  CheckIcon,
+  XIcon,
+} from '../../components/Icons';
 
 interface UserPreferences {
   daily_summary_enabled: boolean;
@@ -35,9 +24,12 @@ interface UserPreferences {
   timezone: string;
 }
 
+type Tab = 'general' | 'connections' | 'preferences' | 'account';
+
 export default function SettingsPage() {
   const supabase = createSupabaseBrowserClient();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<Tab>('general');
   const [user, setUser] = useState<User | null>(null);
   const [connections, setConnections] = useState({ google: false, notion: false });
   const [isLoading, setIsLoading] = useState(true);
@@ -94,16 +86,14 @@ export default function SettingsPage() {
   }, [supabase]);
 
   const handleConnectNotion = () => {
-    // Esta URL será creada en un paso posterior.
     window.location.href = '/api/auth/notion/redirect';
   };
 
   const handleDisconnect = async (serviceName: 'google' | 'notion') => {
     if (!user) return;
 
-    // Confirmación antes de desconectar
     const confirmMessage = serviceName === 'notion'
-      ? '¿Estás seguro de que quieres desconectar Notion? Perderás acceso a tus páginas y bases de datos.'
+      ? '¿Estás seguro de que quieres desconectar Notion?'
       : '¿Estás seguro de que quieres desconectar Google?';
 
     if (!confirm(confirmMessage)) return;
@@ -111,7 +101,6 @@ export default function SettingsPage() {
     try {
       setMessage('Desconectando...');
 
-      // Eliminar credencial de la base de datos
       const { error } = await supabase
         .from('user_credentials')
         .delete()
@@ -119,9 +108,8 @@ export default function SettingsPage() {
 
       if (error) throw error;
 
-      // Actualizar estado local
       setConnections(prev => ({ ...prev, [serviceName]: false }));
-      setMessage(`✓ ${serviceName === 'notion' ? 'Notion' : 'Google'} desconectado correctamente`);
+      setMessage(`${serviceName === 'notion' ? 'Notion' : 'Google'} desconectado correctamente`);
 
       setTimeout(() => setMessage(null), 3000);
     } catch (error: any) {
@@ -153,7 +141,7 @@ export default function SettingsPage() {
 
       if (error) throw error;
 
-      setMessage('✓ Preferencias guardadas');
+      setMessage('Preferencias guardadas correctamente');
       setTimeout(() => setMessage(null), 3000);
     } catch (error: any) {
       console.error('Error guardando preferencias:', error);
@@ -168,200 +156,653 @@ export default function SettingsPage() {
     setPreferences({ ...preferences, daily_summary_time: `${time}:00` });
   };
 
-  const styles = {
-    page: { fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', backgroundColor: '#121212', color: '#E5E5E7', padding: '2rem' } as React.CSSProperties,
-    header: { width: '100%', maxWidth: '600px', marginBottom: '2rem' } as React.CSSProperties,
-    title: { fontSize: '2rem', fontWeight: 600, marginBottom: '0.5rem' } as React.CSSProperties,
-    subtitle: { fontSize: '1rem', color: '#8E8E93' } as React.CSSProperties,
-    card: { backgroundColor: '#1c1c1e', borderRadius: '12px', padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: '600px', marginBottom: '1rem' } as React.CSSProperties,
-    serviceInfo: { display: 'flex', alignItems: 'center', gap: '1rem' } as React.CSSProperties,
-    serviceName: { fontSize: '1.1rem', fontWeight: 500 } as React.CSSProperties,
-    statusBadge: { display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#34D399', backgroundColor: 'rgba(52, 211, 153, 0.1)', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.9rem' } as React.CSSProperties,
-    connectButton: { fontSize: '0.9rem', padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#0A84FF', color: 'white', cursor: 'pointer' } as React.CSSProperties,
-    logoutButton: { marginTop: '2rem', fontSize: '1rem', color: '#8E8E93', background: 'none', border: 'none', cursor: 'pointer' } as React.CSSProperties,
-  };
+  const tabs = [
+    { id: 'general' as Tab, label: 'General', icon: <UserIcon size={18} /> },
+    { id: 'connections' as Tab, label: 'Conexiones', icon: <SettingsIcon size={18} /> },
+    { id: 'preferences' as Tab, label: 'Preferencias', icon: <ClockIcon size={18} /> },
+    { id: 'account' as Tab, label: 'Cuenta', icon: <LogOutIcon size={18} /> },
+  ];
 
   if (isLoading) {
-    return <div style={styles.page}>Cargando...</div>;
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        backgroundColor: 'var(--bg-primary)',
+        color: 'var(--text-secondary)',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="animate-pulse" style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            border: '3px solid var(--border-primary)',
+            borderTopColor: 'var(--accent-blue)',
+            margin: '0 auto var(--space-4)',
+            animation: 'spin 1s linear infinite',
+          }} />
+          Cargando configuración...
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Panel de Conexiones</h1>
-        <p style={styles.subtitle}>Gestiona tus aplicaciones y servicios conectados.</p>
-      </div>
-
-      {/* Tarjeta de Google */}
-      <div style={styles.card}>
-        <div style={styles.serviceInfo}>
-          <GoogleIcon />
-          <span style={styles.serviceName}>Google</span>
-        </div>
-        {connections.google ? (
-          <div style={styles.statusBadge}>
-            <CheckmarkIcon />
-            Conectado
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: 'var(--bg-primary)',
+      padding: 'var(--space-6)',
+    }}>
+      {/* Header */}
+      <div style={{
+        maxWidth: '900px',
+        margin: '0 auto var(--space-8)',
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 'var(--space-6)',
+        }}>
+          <div>
+            <h1 style={{
+              fontSize: 'var(--text-3xl)',
+              fontWeight: 'var(--font-bold)',
+              color: 'var(--text-primary)',
+              marginBottom: 'var(--space-2)',
+            }}>
+              Configuración
+            </h1>
+            <p style={{
+              fontSize: 'var(--text-base)',
+              color: 'var(--text-secondary)',
+            }}>
+              Gestiona tu cuenta y preferencias
+            </p>
           </div>
-        ) : (
-          <p style={{color: '#FBBF24'}}>No conectado</p>
-        )}
-      </div>
-
-      {/* Tarjeta de Notion */}
-      <div style={styles.card}>
-        <div style={styles.serviceInfo}>
-          <NotionIcon />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <span style={styles.serviceName}>Notion</span>
-            {connections.notion && (
-              <div style={styles.statusBadge}>
-                <CheckmarkIcon />
-                Conectado
-              </div>
-            )}
-          </div>
-        </div>
-        {connections.notion ? (
           <button
-            onClick={() => handleDisconnect('notion')}
+            onClick={() => router.push('/')}
             style={{
-              ...styles.connectButton,
-              backgroundColor: '#FF3B30',
+              padding: 'var(--space-3) var(--space-4)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-primary)',
+              backgroundColor: 'var(--bg-secondary)',
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              transition: 'all var(--transition-fast)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
+              fontSize: 'var(--text-sm)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
             }}
           >
-            Desconectar
+            <HomeIcon size={16} />
+            Volver al Chat
           </button>
-        ) : (
-          <button onClick={handleConnectNotion} style={styles.connectButton}>Conectar</button>
-        )}
+        </div>
+
+        {/* Tabs */}
+        <div style={{
+          display: 'flex',
+          gap: 'var(--space-2)',
+          borderBottom: '1px solid var(--border-primary)',
+          marginBottom: 'var(--space-8)',
+        }}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: 'var(--space-3) var(--space-5)',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: activeTab === tab.id ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 'var(--font-medium)',
+                transition: 'all var(--transition-fast)',
+                borderBottom: `2px solid ${activeTab === tab.id ? 'var(--accent-blue)' : 'transparent'}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== tab.id) {
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== tab.id) {
+                  e.currentTarget.style.color = 'var(--text-secondary)';
+                }
+              }}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Sección de Resumen Diario */}
-      <div style={{ ...styles.card, flexDirection: 'column', alignItems: 'stretch', gap: '1.5rem', marginTop: '2rem' }}>
-        <div>
-          <h2 style={{ fontSize: '1.3rem', fontWeight: 600, marginBottom: '0.5rem' }}>Resumen Diario</h2>
-          <p style={{ fontSize: '0.9rem', color: '#8E8E93' }}>Configura cuándo quieres recibir tu resumen diario automático.</p>
-        </div>
-
-        {/* Toggle para habilitar/deshabilitar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: '1rem' }}>Resumen diario activado</span>
-          <label style={{ position: 'relative', display: 'inline-block', width: '50px', height: '28px' }}>
-            <input
-              type="checkbox"
-              checked={preferences.daily_summary_enabled}
-              onChange={(e) => setPreferences({ ...preferences, daily_summary_enabled: e.target.checked })}
-              style={{ opacity: 0, width: 0, height: 0 }}
-            />
-            <span style={{
-              position: 'absolute',
-              cursor: 'pointer',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: preferences.daily_summary_enabled ? '#0A84FF' : '#3A3A3C',
-              transition: '0.4s',
-              borderRadius: '28px',
+      {/* Content */}
+      <div style={{
+        maxWidth: '900px',
+        margin: '0 auto',
+      }}>
+        {/* General Tab */}
+        {activeTab === 'general' && (
+          <div className="animate-fade-in">
+            <div style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-primary)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 'var(--space-8)',
             }}>
-              <span style={{
-                position: 'absolute',
-                content: '',
-                height: '20px',
-                width: '20px',
-                left: preferences.daily_summary_enabled ? '26px' : '4px',
-                bottom: '4px',
-                backgroundColor: 'white',
-                transition: '0.4s',
-                borderRadius: '50%',
-              }} />
-            </span>
-          </label>
-        </div>
+              <h2 style={{
+                fontSize: 'var(--text-xl)',
+                fontWeight: 'var(--font-semibold)',
+                marginBottom: 'var(--space-6)',
+                color: 'var(--text-primary)',
+              }}>
+                Información del Usuario
+              </h2>
 
-        {/* Configuración de hora y zona horaria (solo si está habilitado) */}
-        {preferences.daily_summary_enabled && (
-          <>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label htmlFor="summary-time" style={{ fontSize: '0.95rem', color: '#E5E5E7' }}>
-                Hora del resumen
-              </label>
-              <input
-                id="summary-time"
-                type="time"
-                value={getTimeForInput(preferences.daily_summary_time)}
-                onChange={(e) => setTimeFromInput(e.target.value)}
-                style={{
-                  backgroundColor: '#2C2C2E',
-                  border: '1px solid #3A3A3C',
-                  borderRadius: '8px',
-                  padding: '0.75rem',
-                  color: '#E5E5E7',
-                  fontSize: '1rem',
-                }}
-              />
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-4)',
+                padding: 'var(--space-6)',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-tertiary)',
+              }}>
+                <div style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <UserIcon size={32} color="white" />
+                </div>
+                <div>
+                  <div style={{
+                    fontSize: 'var(--text-lg)',
+                    fontWeight: 'var(--font-semibold)',
+                    color: 'var(--text-primary)',
+                    marginBottom: 'var(--space-1)',
+                  }}>
+                    {user?.user_metadata?.full_name || user?.email || 'Usuario'}
+                  </div>
+                  <div style={{
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--text-secondary)',
+                  }}>
+                    {user?.email}
+                  </div>
+                </div>
+              </div>
             </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label htmlFor="timezone" style={{ fontSize: '0.95rem', color: '#E5E5E7' }}>
-                Zona horaria
-              </label>
-              <select
-                id="timezone"
-                value={preferences.timezone}
-                onChange={(e) => setPreferences({ ...preferences, timezone: e.target.value })}
-                style={{
-                  backgroundColor: '#2C2C2E',
-                  border: '1px solid #3A3A3C',
-                  borderRadius: '8px',
-                  padding: '0.75rem',
-                  color: '#E5E5E7',
-                  fontSize: '1rem',
-                }}
-              >
-                <option value="America/Bogota">Bogotá (GMT-5)</option>
-                <option value="America/New_York">Nueva York (GMT-5)</option>
-                <option value="America/Los_Angeles">Los Ángeles (GMT-8)</option>
-                <option value="America/Mexico_City">Ciudad de México (GMT-6)</option>
-                <option value="America/Argentina/Buenos_Aires">Buenos Aires (GMT-3)</option>
-                <option value="Europe/Madrid">Madrid (GMT+1)</option>
-                <option value="Europe/London">Londres (GMT+0)</option>
-                <option value="Asia/Tokyo">Tokio (GMT+9)</option>
-              </select>
-            </div>
-          </>
+          </div>
         )}
 
-        {/* Botón de guardar */}
-        <button
-          onClick={handleSavePreferences}
-          disabled={saving}
-          style={{
-            ...styles.connectButton,
-            backgroundColor: saving ? '#3A3A3C' : '#0A84FF',
-            cursor: saving ? 'not-allowed' : 'pointer',
-            opacity: saving ? 0.6 : 1,
-          }}
-        >
-          {saving ? 'Guardando...' : 'Guardar cambios'}
-        </button>
+        {/* Connections Tab */}
+        {activeTab === 'connections' && (
+          <div className="animate-fade-in">
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--space-4)',
+            }}>
+              {/* Google Card */}
+              <div style={{
+                backgroundColor: 'var(--bg-secondary)',
+                border: '1px solid var(--border-primary)',
+                borderRadius: 'var(--radius-lg)',
+                padding: 'var(--space-6)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between)',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-4)',
+                }}>
+                  <GoogleIcon size={32} />
+                  <div>
+                    <div style={{
+                      fontSize: 'var(--text-lg)',
+                      fontWeight: 'var(--font-semibold)',
+                      color: 'var(--text-primary)',
+                      marginBottom: 'var(--space-1)',
+                    }}>
+                      Google
+                    </div>
+                    <div style={{
+                      fontSize: 'var(--text-sm)',
+                      color: 'var(--text-secondary)',
+                    }}>
+                      Gmail y Calendar
+                    </div>
+                  </div>
+                </div>
+                {connections.google ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                    padding: 'var(--space-2) var(--space-4)',
+                    borderRadius: 'var(--radius-full)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    color: 'var(--status-success)',
+                    fontSize: 'var(--text-sm)',
+                  }}>
+                    <CheckCircleIcon size={16} />
+                    Conectado
+                  </div>
+                ) : (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                    padding: 'var(--space-2) var(--space-4)',
+                    borderRadius: 'var(--radius-full)',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    color: 'var(--status-warning)',
+                    fontSize: 'var(--text-sm)',
+                  }}>
+                    <AlertIcon size={16} />
+                    No conectado
+                  </div>
+                )}
+              </div>
 
-        {/* Mensaje de confirmación/error */}
-        {message && (
-          <div style={{
-            padding: '0.75rem',
-            borderRadius: '8px',
-            backgroundColor: message.includes('Error') ? 'rgba(255, 59, 48, 0.1)' : 'rgba(52, 211, 153, 0.1)',
-            color: message.includes('Error') ? '#FF3B30' : '#34D399',
-            fontSize: '0.9rem',
-          }}>
-            {message}
+              {/* Notion Card */}
+              <div style={{
+                backgroundColor: 'var(--bg-secondary)',
+                border: '1px solid var(--border-primary)',
+                borderRadius: 'var(--radius-lg)',
+                padding: 'var(--space-6)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-4)',
+                }}>
+                  <NotionIcon size={32} />
+                  <div>
+                    <div style={{
+                      fontSize: 'var(--text-lg)',
+                      fontWeight: 'var(--font-semibold)',
+                      color: 'var(--text-primary)',
+                      marginBottom: 'var(--space-1)',
+                    }}>
+                      Notion
+                    </div>
+                    <div style={{
+                      fontSize: 'var(--text-sm)',
+                      color: 'var(--text-secondary)',
+                    }}>
+                      Páginas y bases de datos
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                  {connections.notion && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-2)',
+                      padding: 'var(--space-2) var(--space-4)',
+                      borderRadius: 'var(--radius-full)',
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                      color: 'var(--status-success)',
+                      fontSize: 'var(--text-sm)',
+                    }}>
+                      <CheckCircleIcon size={16} />
+                      Conectado
+                    </div>
+                  )}
+                  <button
+                    onClick={() => connections.notion ? handleDisconnect('notion') : handleConnectNotion()}
+                    style={{
+                      padding: 'var(--space-2) var(--space-4)',
+                      borderRadius: 'var(--radius-md)',
+                      border: 'none',
+                      backgroundColor: connections.notion ? 'var(--accent-red)' : 'var(--accent-blue)',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 'var(--font-semibold)',
+                      transition: 'all var(--transition-fast)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = connections.notion ? 'var(--accent-red-hover)' : 'var(--accent-blue-hover)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = connections.notion ? 'var(--accent-red)' : 'var(--accent-blue)';
+                    }}
+                  >
+                    {connections.notion ? 'Desconectar' : 'Conectar'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Preferences Tab */}
+        {activeTab === 'preferences' && (
+          <div className="animate-fade-in">
+            <div style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-primary)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 'var(--space-8)',
+            }}>
+              <h2 style={{
+                fontSize: 'var(--text-xl)',
+                fontWeight: 'var(--font-semibold)',
+                marginBottom: 'var(--space-2)',
+                color: 'var(--text-primary)',
+              }}>
+                Resumen Diario
+              </h2>
+              <p style={{
+                fontSize: 'var(--text-sm)',
+                color: 'var(--text-secondary)',
+                marginBottom: 'var(--space-6)',
+              }}>
+                Configura cuándo recibir tu resumen diario automático
+              </p>
+
+              {/* Toggle */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: 'var(--space-4)',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-tertiary)',
+                marginBottom: 'var(--space-6)',
+              }}>
+                <div>
+                  <div style={{
+                    fontSize: 'var(--text-base)',
+                    fontWeight: 'var(--font-medium)',
+                    color: 'var(--text-primary)',
+                    marginBottom: 'var(--space-1)',
+                  }}>
+                    Resumen diario activado
+                  </div>
+                  <div style={{
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--text-secondary)',
+                  }}>
+                    Recibe un resumen de tus actividades cada mañana
+                  </div>
+                </div>
+                <label style={{
+                  position: 'relative',
+                  display: 'inline-block',
+                  width: '50px',
+                  height: '28px',
+                  cursor: 'pointer',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={preferences.daily_summary_enabled}
+                    onChange={(e) => setPreferences({ ...preferences, daily_summary_enabled: e.target.checked })}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: preferences.daily_summary_enabled ? 'var(--accent-blue)' : 'var(--bg-elevated)',
+                    transition: 'var(--transition-base)',
+                    borderRadius: '28px',
+                  }}>
+                    <span style={{
+                      position: 'absolute',
+                      height: '20px',
+                      width: '20px',
+                      left: preferences.daily_summary_enabled ? '26px' : '4px',
+                      bottom: '4px',
+                      backgroundColor: 'white',
+                      transition: 'var(--transition-base)',
+                      borderRadius: '50%',
+                    }} />
+                  </span>
+                </label>
+              </div>
+
+              {/* Time and Timezone (conditional) */}
+              {preferences.daily_summary_enabled && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--space-6)',
+                  marginBottom: 'var(--space-6)',
+                }}>
+                  {/* Time */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 'var(--font-medium)',
+                      color: 'var(--text-primary)',
+                      marginBottom: 'var(--space-2)',
+                    }}>
+                      Hora del resumen
+                    </label>
+                    <input
+                      type="time"
+                      value={getTimeForInput(preferences.daily_summary_time)}
+                      onChange={(e) => setTimeFromInput(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: 'var(--space-3)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-primary)',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        color: 'var(--text-primary)',
+                        fontSize: 'var(--text-base)',
+                      }}
+                    />
+                  </div>
+
+                  {/* Timezone */}
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 'var(--font-medium)',
+                      color: 'var(--text-primary)',
+                      marginBottom: 'var(--space-2)',
+                    }}>
+                      Zona horaria
+                    </label>
+                    <select
+                      value={preferences.timezone}
+                      onChange={(e) => setPreferences({ ...preferences, timezone: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: 'var(--space-3)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-primary)',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        color: 'var(--text-primary)',
+                        fontSize: 'var(--text-base)',
+                      }}
+                    >
+                      <option value="America/Bogota">Bogotá (GMT-5)</option>
+                      <option value="America/New_York">Nueva York (GMT-5)</option>
+                      <option value="America/Los_Angeles">Los Ángeles (GMT-8)</option>
+                      <option value="America/Mexico_City">Ciudad de México (GMT-6)</option>
+                      <option value="America/Argentina/Buenos_Aires">Buenos Aires (GMT-3)</option>
+                      <option value="Europe/Madrid">Madrid (GMT+1)</option>
+                      <option value="Europe/London">Londres (GMT+0)</option>
+                      <option value="Asia/Tokyo">Tokio (GMT+9)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Save Button */}
+              <button
+                onClick={handleSavePreferences}
+                disabled={saving}
+                style={{
+                  width: '100%',
+                  padding: 'var(--space-3)',
+                  borderRadius: 'var(--radius-md)',
+                  border: 'none',
+                  backgroundColor: saving ? 'var(--bg-tertiary)' : 'var(--accent-blue)',
+                  color: 'white',
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 'var(--font-semibold)',
+                  transition: 'all var(--transition-fast)',
+                  opacity: saving ? 0.6 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 'var(--space-2)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!saving) e.currentTarget.style.backgroundColor = 'var(--accent-blue-hover)';
+                }}
+                onMouseLeave={(e) => {
+                  if (!saving) e.currentTarget.style.backgroundColor = 'var(--accent-blue)';
+                }}
+              >
+                {saving ? (
+                  <>
+                    <div className="animate-spin" style={{
+                      width: '16px',
+                      height: '16px',
+                      border: '2px solid white',
+                      borderTopColor: 'transparent',
+                      borderRadius: '50%',
+                    }} />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <CheckIcon size={16} />
+                    Guardar cambios
+                  </>
+                )}
+              </button>
+
+              {/* Message */}
+              {message && (
+                <div style={{
+                  marginTop: 'var(--space-4)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: message.includes('Error') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                  color: message.includes('Error') ? 'var(--status-error)' : 'var(--status-success)',
+                  fontSize: 'var(--text-sm)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-2)',
+                }}>
+                  {message.includes('Error') ? <XIcon size={16} /> : <CheckIcon size={16} />}
+                  {message}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Account Tab */}
+        {activeTab === 'account' && (
+          <div className="animate-fade-in">
+            <div style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-primary)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 'var(--space-8)',
+            }}>
+              <h2 style={{
+                fontSize: 'var(--text-xl)',
+                fontWeight: 'var(--font-semibold)',
+                marginBottom: 'var(--space-6)',
+                color: 'var(--text-primary)',
+              }}>
+                Gestión de Cuenta
+              </h2>
+
+              {/* Logout Section */}
+              <div style={{
+                padding: 'var(--space-6)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-primary)',
+                backgroundColor: 'var(--bg-tertiary)',
+              }}>
+                <div style={{
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 'var(--font-medium)',
+                  color: 'var(--text-primary)',
+                  marginBottom: 'var(--space-2)',
+                }}>
+                  Cerrar sesión
+                </div>
+                <p style={{
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--text-secondary)',
+                  marginBottom: 'var(--space-4)',
+                }}>
+                  Cierra tu sesión actual en este dispositivo
+                </p>
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    padding: 'var(--space-3) var(--space-5)',
+                    borderRadius: 'var(--radius-md)',
+                    border: 'none',
+                    backgroundColor: 'var(--accent-red)',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 'var(--font-semibold)',
+                    transition: 'all var(--transition-fast)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--accent-red-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--accent-red)';
+                  }}
+                >
+                  <LogOutIcon size={16} />
+                  Cerrar Sesión
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
-
-      <button onClick={handleLogout} style={styles.logoutButton}>Cerrar Sesión</button>
     </div>
   );
 }
