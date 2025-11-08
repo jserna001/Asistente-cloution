@@ -1,8 +1,10 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createSupabaseBrowserClient } from '../lib/supabaseClient';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import {
   BotIcon,
   ZapIcon,
@@ -15,6 +17,8 @@ import {
   SendIcon,
   SpinnerIcon,
 } from '../components/Icons';
+
+gsap.registerPlugin(useGSAP);
 
 // Tipos de mensajes mejorados
 interface MessageMetadata {
@@ -144,6 +148,13 @@ function ChatUI() {
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
 
+  // Refs para animaciones GSAP
+  const headerRef = useRef<HTMLDivElement>(null);
+  const summaryRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const loadingIndicatorRef = useRef<HTMLDivElement>(null);
+
   // Cargar resumen diario
   async function loadDailySummary() {
     console.log('Cargando resumen diario...');
@@ -233,6 +244,94 @@ function ChatUI() {
     loadDailySummary();
   }, [searchParams]);
 
+  // Animación de entrada inicial del header
+  useGSAP(() => {
+    if (headerRef.current) {
+      gsap.from(headerRef.current, {
+        y: -20,
+        opacity: 0,
+        duration: 0.6,
+        ease: 'power3.out',
+      });
+    }
+  }, { scope: containerRef });
+
+  // Animación del resumen diario cuando aparece
+  useGSAP(() => {
+    if (summaryRef.current && dailySummary) {
+      gsap.from(summaryRef.current, {
+        y: 20,
+        opacity: 0,
+        scale: 0.95,
+        duration: 0.5,
+        ease: 'back.out(1.2)',
+      });
+    }
+  }, { dependencies: [dailySummary], scope: containerRef });
+
+  // Auto-scroll suave cuando hay nuevos mensajes
+  useEffect(() => {
+    if (messagesContainerRef.current && messages.length > 0) {
+      const container = messagesContainerRef.current;
+      gsap.to(container, {
+        scrollTop: container.scrollHeight,
+        duration: 0.5,
+        ease: 'power2.out',
+      });
+    }
+  }, [messages]);
+
+  // Animar nuevos mensajes
+  useGSAP(() => {
+    const messageElements = messagesContainerRef.current?.querySelectorAll('.message-item');
+    if (messageElements && messageElements.length > 0) {
+      const lastMessage = messageElements[messageElements.length - 1];
+      gsap.from(lastMessage, {
+        y: 30,
+        opacity: 0,
+        scale: 0.95,
+        duration: 0.4,
+        ease: 'power3.out',
+      });
+
+      // Animar metadata con stagger
+      const metadataElements = lastMessage.querySelectorAll('.message-metadata > *');
+      if (metadataElements.length > 0) {
+        gsap.from(metadataElements, {
+          y: 10,
+          opacity: 0,
+          duration: 0.3,
+          stagger: 0.05,
+          ease: 'power2.out',
+          delay: 0.2,
+        });
+      }
+    }
+  }, { dependencies: [messages.length], scope: containerRef });
+
+  // Animar indicador de "Pensando..."
+  useGSAP(() => {
+    if (isLoading && loadingIndicatorRef.current) {
+      const dot = loadingIndicatorRef.current.querySelector('.loading-dot');
+      if (dot) {
+        gsap.to(dot, {
+          opacity: 0.3,
+          duration: 0.8,
+          repeat: -1,
+          yoyo: true,
+          ease: 'power1.inOut',
+        });
+      }
+
+      gsap.from(loadingIndicatorRef.current, {
+        y: 20,
+        opacity: 0,
+        duration: 0.3,
+        ease: 'power2.out',
+      });
+    }
+  }, { dependencies: [isLoading], scope: containerRef });
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!currentQuery.trim() || isLoading) return;
@@ -303,7 +402,7 @@ function ChatUI() {
   };
 
   return (
-    <div style={{
+    <div ref={containerRef} style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100vh',
@@ -313,7 +412,7 @@ function ChatUI() {
       color: 'var(--text-primary)',
     }}>
       {/* Header */}
-      <header style={{
+      <header ref={headerRef} style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -379,13 +478,13 @@ function ChatUI() {
 
       {/* Resumen Diario */}
       {dailySummary && (
-        <div style={{
+        <div ref={summaryRef} style={{
           margin: 'var(--space-6)',
           padding: 'var(--space-6)',
           borderRadius: 'var(--radius-lg)',
           background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(139, 92, 246, 0.1))',
           border: '1px solid var(--border-primary)',
-        }} className="animate-slide-up">
+        }}>
           {summaryDate && (
             <div style={{
               fontSize: 'var(--text-sm)',
@@ -413,7 +512,7 @@ function ChatUI() {
       )}
 
       {/* Mensajes */}
-      <div style={{
+      <div ref={messagesContainerRef} style={{
         flex: 1,
         padding: 'var(--space-6)',
         overflowY: 'auto',
@@ -424,13 +523,13 @@ function ChatUI() {
         {messages.map((msg, index) => (
           <div
             key={index}
+            className="message-item"
             style={{
               display: 'flex',
               flexDirection: 'column',
               alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start',
               gap: 'var(--space-2)',
             }}
-            className="animate-fade-in"
           >
             {/* Mensaje */}
             <div style={{
@@ -452,7 +551,7 @@ function ChatUI() {
 
             {/* Metadata y acciones (solo para AI) */}
             {msg.sender === 'ai' && msg.metadata && (
-              <div style={{
+              <div className="message-metadata" style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 'var(--space-2)',
@@ -482,7 +581,7 @@ function ChatUI() {
         ))}
 
         {isLoading && (
-          <div style={{
+          <div ref={loadingIndicatorRef} style={{
             display: 'flex',
             alignItems: 'center',
             gap: 'var(--space-2)',
@@ -491,8 +590,8 @@ function ChatUI() {
             backgroundColor: 'var(--bg-secondary)',
             border: '1px solid var(--border-primary)',
             maxWidth: '80%',
-          }} className="animate-pulse">
-            <div style={{
+          }}>
+            <div className="loading-dot" style={{
               width: '8px',
               height: '8px',
               borderRadius: '50%',
