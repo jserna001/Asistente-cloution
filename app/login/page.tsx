@@ -109,7 +109,60 @@ function LoginUI({ isTransitioning }: { isTransitioning: boolean }) {
                             <span>Multi-modelo • RAG • Notion • Gmail</span>
                         </div>
                     </div>
-                    <button onClick={handleLoginWithGoogle} style={{ width: '100%', padding: 'var(--space-4)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: 'var(--text-base)', fontWeight: 'var(--font-semibold)', cursor: 'pointer', transition: 'all var(--transition-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-3)', position: 'relative', overflow: 'hidden' }}>
+                    <button 
+                        onClick={handleLoginWithGoogle} 
+                        style={{ 
+                            width: '100%', 
+                            padding: 'var(--space-4)', 
+                            borderRadius: 'var(--radius-lg)', 
+                            border: '1px solid var(--border-primary)', 
+                            backgroundColor: 'var(--bg-elevated)', 
+                            color: 'var(--text-primary)', 
+                            fontSize: 'var(--text-base)', 
+                            fontWeight: 'var(--font-semibold)', 
+                            cursor: 'pointer', 
+                            transition: 'all var(--transition-base)', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            gap: 'var(--space-3)', 
+                            position: 'relative', 
+                            overflow: 'hidden' 
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                            e.currentTarget.style.borderColor = 'var(--border-focus)';
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.2)';
+                            
+                            const glint = e.currentTarget.querySelector('.glint-span');
+                            if (glint) {
+                                gsap.fromTo(glint, 
+                                { xPercent: -150 }, 
+                                { xPercent: 600, duration: 1.2, ease: 'power1.inOut' }
+                                );
+                            }
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--bg-elevated)';
+                            e.currentTarget.style.borderColor = 'var(--border-primary)';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = 'none';
+                        }}
+                    >
+                        <span
+                            className="glint-span"
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '30%',
+                                height: '100%',
+                                background: 'linear-gradient(to right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0) 100%)',
+                                transform: 'skewX(-25deg) translateX(-150%)',
+                                pointerEvents: 'none',
+                            }}
+                        />
                         <GoogleIcon size={20} />
                         Iniciar sesión con Google
                     </button>
