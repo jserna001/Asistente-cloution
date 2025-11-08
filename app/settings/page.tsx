@@ -100,12 +100,34 @@ export default function SettingsPage() {
 
   const handleDisconnect = async (serviceName: 'google' | 'notion') => {
     if (!user) return;
-    alert(`Lógica para desconectar ${serviceName} no implementada.`);
-    // Aquí llamarías a una API para eliminar la credencial de la base de datos.
-    // const { error } = await supabase.from('user_credentials').delete().match({ user_id: user.id, service_name: serviceName });
-    // if (!error) {
-    //   setConnections(prev => ({ ...prev, [serviceName]: false }));
-    // }
+
+    // Confirmación antes de desconectar
+    const confirmMessage = serviceName === 'notion'
+      ? '¿Estás seguro de que quieres desconectar Notion? Perderás acceso a tus páginas y bases de datos.'
+      : '¿Estás seguro de que quieres desconectar Google?';
+
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      setMessage('Desconectando...');
+
+      // Eliminar credencial de la base de datos
+      const { error } = await supabase
+        .from('user_credentials')
+        .delete()
+        .match({ user_id: user.id, service_name: serviceName });
+
+      if (error) throw error;
+
+      // Actualizar estado local
+      setConnections(prev => ({ ...prev, [serviceName]: false }));
+      setMessage(`✓ ${serviceName === 'notion' ? 'Notion' : 'Google'} desconectado correctamente`);
+
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error: any) {
+      console.error(`Error desconectando ${serviceName}:`, error);
+      setMessage(`Error al desconectar: ${error.message}`);
+    }
   };
 
   const handleLogout = async () => {
@@ -190,13 +212,26 @@ export default function SettingsPage() {
       <div style={styles.card}>
         <div style={styles.serviceInfo}>
           <NotionIcon />
-          <span style={styles.serviceName}>Notion</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <span style={styles.serviceName}>Notion</span>
+            {connections.notion && (
+              <div style={styles.statusBadge}>
+                <CheckmarkIcon />
+                Conectado
+              </div>
+            )}
+          </div>
         </div>
         {connections.notion ? (
-          <div style={styles.statusBadge}>
-            <CheckmarkIcon />
-            Conectado
-          </div>
+          <button
+            onClick={() => handleDisconnect('notion')}
+            style={{
+              ...styles.connectButton,
+              backgroundColor: '#FF3B30',
+            }}
+          >
+            Desconectar
+          </button>
         ) : (
           <button onClick={handleConnectNotion} style={styles.connectButton}>Conectar</button>
         )}

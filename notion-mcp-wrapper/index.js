@@ -97,24 +97,39 @@ fastify.post('/mcp', async (request, reply) => {
 
   if (!userId) {
     return reply.code(401).send({
-      error: 'Missing X-User-Id header'
+      jsonrpc: "2.0",
+      error: {
+        code: -32600,
+        message: 'Missing X-User-Id header'
+      },
+      id: request.body?.id || null
     });
   }
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return reply.code(401).send({
-      error: 'Missing or invalid Authorization header'
+      jsonrpc: "2.0",
+      error: {
+        code: -32600,
+        message: 'Missing or invalid Authorization header'
+      },
+      id: request.body?.id || null
     });
   }
 
   const notionToken = authHeader.replace('Bearer ', '');
+  const { jsonrpc, id, method, params } = request.body;
 
   try {
+    // Manejar notificaciones (no esperan respuesta con id)
+    if (method && method.startsWith('notifications/')) {
+      fastify.log.info(`Received notification ${method} for user ${userId.substring(0, 8)}`);
+      // Las notificaciones no requieren respuesta JSON-RPC
+      return reply.code(200).send({});
+    }
+
     // Obtener cliente MCP para este usuario
     const client = await getMCPClient(userId, notionToken);
-
-    // Procesar el request según el tipo de operación
-    const { method, params } = request.body;
 
     fastify.log.info(`Executing ${method} for user ${userId.substring(0, 8)}`);
 
@@ -147,18 +162,33 @@ fastify.post('/mcp', async (request, reply) => {
 
       default:
         return reply.code(400).send({
-          error: `Unknown method: ${method}`
+          jsonrpc: "2.0",
+          error: {
+            code: -32601,
+            message: `Method not found: ${method}`
+          },
+          id
         });
     }
 
-    return reply.send(result);
+    // Envolver respuesta en formato JSON-RPC 2.0
+    return reply.send({
+      jsonrpc: "2.0",
+      result,
+      id
+    });
 
   } catch (error) {
     fastify.log.error(`Error processing ${request.body.method}:`, error);
 
     return reply.code(500).send({
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      jsonrpc: "2.0",
+      error: {
+        code: -32603,
+        message: error.message,
+        data: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
+      id: request.body?.id || null
     });
   }
 });
