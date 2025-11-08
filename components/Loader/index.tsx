@@ -70,7 +70,7 @@ export default function Loader({
         preserveAspectRatio="xMidYMid meet"
       >
         <text className={`${styles.logoText} cloution-text`} x="-170" y="75">
-          cloution
+          Cloution
         </text>
         <g className="ai-group">
           <path className="a-line-1" d="M0 100 L30 0" />
