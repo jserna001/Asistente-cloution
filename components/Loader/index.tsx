@@ -49,7 +49,7 @@ export default function Loader({
     // --- VERSIÓN MÓVIL (VERTICAL/APILADO) ---
     mm.add("(max-width: 768px)", () => {
       // 1. Pre-posiciona los elementos para el layout móvil
-      gsap.set(".ai-group", { x: 30 }); // Centra el "AI"
+      gsap.set(".ai-group", { x: 15 }); // Centra el "AI"
       gsap.set(".cloution-text", { x: 40, y: 160, textAnchor: 'middle' }); // Centra "cloution" debajo
 
       // 2. Crea la línea de tiempo móvil
