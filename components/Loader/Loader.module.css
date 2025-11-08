@@ -1,0 +1,41 @@
+.loaderContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100vh;
+  background-color: #0a0a0a;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+}
+
+.logoContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logoSvg {
+  width: 100px;
+  height: auto;
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.cloutionText {
+  font-size: 5rem;
+  font-weight: 700;
+  color: white;
+  white-space: nowrap;
+  opacity: 0; /* Start hidden */
+}
+
+/* Wrapper for each character to handle stagger animation */
+.charWrapper {
+  display: inline-block;
+  overflow: hidden;
+}
+
+.char {
+  display: inline-block;
+}

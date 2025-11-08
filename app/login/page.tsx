@@ -2,13 +2,16 @@
 
 import { createSupabaseBrowserClient } from '../../lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GoogleIcon, BotIcon, SparklesIcon } from '../../components/Icons';
 import { gsap } from 'gsap';
+import Loader from '../../components/Loader';
 
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
+  const [showLoader, setShowLoader] = useState(true);
+  
   const cardRef = useRef<HTMLDivElement>(null);
   const logoRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -16,8 +19,10 @@ export default function LoginPage() {
   const featuresRef = useRef<HTMLDivElement>(null);
   const auraRef = useRef<HTMLDivElement>(null);
 
-  // Animaciones GSAP de entrada
+  // Animaciones GSAP de entrada para la tarjeta de login
   useEffect(() => {
+    if (showLoader) return; // No ejecutar si el loader se está mostrando
+
     const ctx = gsap.context(() => {
       // Timeline principal
       const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
@@ -55,10 +60,12 @@ export default function LoginPage() {
     });
 
     return () => ctx.revert();
-  }, []);
+  }, [showLoader]);
 
   // Mouse follower aura effect
   useEffect(() => {
+    if (showLoader) return;
+
     const ctx = gsap.context(() => {
       const aura = auraRef.current;
       if (!aura) return;
@@ -78,7 +85,7 @@ export default function LoginPage() {
     });
 
     return () => ctx.revert();
-  }, []);
+  }, [showLoader]);
 
   // Redirige si ya hay sesión
   useEffect(() => {
@@ -96,6 +103,10 @@ export default function LoginPage() {
   const handleLoginWithGoogle = () => {
     window.location.href = '/api/auth/google/redirect';
   };
+
+  if (showLoader) {
+    return <Loader onComplete={() => setShowLoader(false)} />;
+  }
 
   return (
     <div style={{

@@ -130,6 +130,8 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+import Loader from '../components/Loader';
+
 function ChatUI() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentQuery, setCurrentQuery] = useState('');
@@ -574,7 +576,7 @@ function ChatUI() {
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div>Cargando...</div>}>
+    <Suspense fallback={<Loader />}>
       <ChatUI />
     </Suspense>
   );

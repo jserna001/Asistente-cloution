@@ -5,6 +5,7 @@ import { gsap } from 'gsap';
 import { createSupabaseBrowserClient } from '../../lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
+import Loader from '../../components/Loader';
 import {
   GoogleIcon,
   NotionIcon,
@@ -83,7 +84,8 @@ export default function SettingsPage() {
           });
         }
       }
-      setIsLoading(false);
+      // Simulate a longer loading time to see the loader
+      setTimeout(() => setIsLoading(false), 2000);
     };
 
     loadUserData();
@@ -218,29 +220,7 @@ export default function SettingsPage() {
   ];
 
   if (isLoading) {
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        backgroundColor: 'var(--bg-primary)',
-        color: 'var(--text-secondary)',
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div className="animate-pulse" style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '50%',
-            border: '3px solid var(--border-primary)',
-            borderTopColor: 'var(--accent-blue)',
-            margin: '0 auto var(--space-4)',
-            animation: 'spin 1s linear infinite',
-          }} />
-          Cargando configuración...
-        </div>
-      </div>
-    );
+    return <Loader />;
   }
 
   return (
