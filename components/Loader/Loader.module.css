@@ -5,19 +5,19 @@
   place-items: center;
   background-color: #000;
   overflow: hidden; 
-  z-index: 100; /* Al frente por defecto */
+  z-index: 100;
   position: absolute;
   top: 0;
   left: 0;
 }
 
-/* Sube el z-index para animarse POR ENCIMA del login */
 .transitioning {
   z-index: 101; 
 }
 
 .logoSvg {
-  width: 400px;
+  /* Tamaño por defecto (Escritorio) */
+  width: 400px; 
   overflow: visible; 
   stroke: #FFFFFF;
   stroke-width: 8;
@@ -31,6 +31,14 @@
   font-weight: 500;
   fill: #FFFFFF;
   stroke: none;
+}
+
+/* --- AJUSTE RESPONSIVE --- */
+ @media (max-width: 768px) {
+  .logoSvg {
+    /* Un tamaño más apropiado para móviles */
+    width: 280px; 
+  }
 }
 
 /* Ocultar elementos por defecto para prevenir FOUC (Flash of Unstyled Content) */
