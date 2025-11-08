@@ -136,7 +136,9 @@ function LoginUI({ isTransitioning }: { isTransitioning: boolean }) {
 
 // --- Orchestrator Component ---
 export default function LoginPage() {
-  const [loaderState, setLoaderState] = useState<LoaderState>('loading');
+  const [loaderState, setLoaderState] = useState<'loading' | 'transitioning' | 'finished'>('loading');
+  const router = useRouter();
+  const supabase = createSupabaseBrowserClient();
 
   // Prevent body scroll while this page is mounted
   useEffect(() => {
