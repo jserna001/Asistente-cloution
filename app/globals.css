@@ -40,3 +40,16 @@ a {
     color-scheme: dark;
   }
 }
+
+/* Tab animation styles */
+.tab-container {
+  position: relative;
+  transition: height 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.tab-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}

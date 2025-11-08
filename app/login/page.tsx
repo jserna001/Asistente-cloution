@@ -14,6 +14,7 @@ export default function LoginPage() {
   const headerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const featuresRef = useRef<HTMLDivElement>(null);
+  const auraRef = useRef<HTMLDivElement>(null);
 
   // Animaciones GSAP de entrada
   useEffect(() => {
@@ -36,13 +37,6 @@ export default function LoginPage() {
         duration: 0.6,
       }, '-=0.4');
 
-      // Animación del botón con scale
-      tl.from(buttonRef.current, {
-        opacity: 0,
-        scale: 0.8,
-        duration: 0.5,
-      }, '-=0.3');
-
       // Animación de las features (una por una)
       tl.from(featuresRef.current?.children || [], {
         opacity: 0,
@@ -58,6 +52,29 @@ export default function LoginPage() {
         duration: 0.8,
         ease: 'power3.out',
       });
+    });
+
+    return () => ctx.revert();
+  }, []);
+
+  // Mouse follower aura effect
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      const aura = auraRef.current;
+      if (!aura) return;
+
+      gsap.to(aura, { opacity: 1, duration: 1, ease: 'power3.out' });
+
+      const onMouseMove = (e: MouseEvent) => {
+        gsap.to(aura, {
+          x: e.clientX,
+          y: e.clientY,
+          duration: 0.7,
+          ease: 'power3.out',
+        });
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
     });
 
     return () => ctx.revert();
@@ -88,35 +105,28 @@ export default function LoginPage() {
       minHeight: '100vh',
       backgroundColor: 'var(--bg-primary)',
       backgroundImage: `
-        radial-gradient(circle at 20% 50%, rgba(14, 165, 233, 0.15) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.15) 0%, transparent 50%)
+        radial-gradient(circle at 20% 50%, rgba(14, 165, 233, 0.1) 0%, transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 40%)
       `,
       position: 'relative',
       overflow: 'hidden',
+      cursor: 'default',
     }}>
-      {/* Decorative background elements */}
-      <div style={{
-        position: 'absolute',
-        top: '-10%',
-        right: '-5%',
-        width: '500px',
-        height: '500px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(14, 165, 233, 0.1) 0%, transparent 70%)',
-        filter: 'blur(60px)',
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'absolute',
-        bottom: '-10%',
-        left: '-5%',
-        width: '500px',
-        height: '500px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%)',
-        filter: 'blur(60px)',
-        pointerEvents: 'none',
-      }} />
+      <div
+        ref={auraRef}
+        style={{
+          position: 'fixed',
+          width: '400px',
+          height: '400px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(14, 165, 233, 0.15) 0%, transparent 70%)',
+          filter: 'blur(80px)',
+          pointerEvents: 'none',
+          willChange: 'transform',
+          opacity: 0,
+          transform: 'translate(-50%, -50%)',
+        }}
+      />
 
       {/* Login Card */}
       <div
@@ -125,11 +135,13 @@ export default function LoginPage() {
           maxWidth: '420px',
           width: '100%',
           margin: '0 var(--space-4)',
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         {/* Glass Card */}
         <div style={{
-          backgroundColor: 'var(--bg-secondary)',
+          backgroundColor: 'rgba(17, 17, 17, 0.7)',
           border: '1px solid var(--border-primary)',
           borderRadius: 'var(--radius-xl)',
           padding: 'var(--space-12)',
@@ -241,6 +253,14 @@ export default function LoginPage() {
               e.currentTarget.style.borderColor = 'var(--border-focus)';
               e.currentTarget.style.transform = 'translateY(-2px)';
               e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.2)';
+              
+              const glint = e.currentTarget.querySelector('.glint-span');
+              if (glint) {
+                gsap.fromTo(glint, 
+                  { xPercent: -150 }, 
+                  { xPercent: 600, duration: 1.2, ease: 'power1.inOut' }
+                );
+              }
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'var(--bg-elevated)';
@@ -249,6 +269,19 @@ export default function LoginPage() {
               e.currentTarget.style.boxShadow = 'none';
             }}
           >
+            <span
+              className="glint-span"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '30%',
+                height: '100%',
+                background: 'linear-gradient(to right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.4) 50%, rgba(255, 255, 255, 0) 100%)',
+                transform: 'skewX(-25deg) translateX(-150%)',
+                pointerEvents: 'none',
+              }}
+            />
             <GoogleIcon size={20} />
             Iniciar sesión con Google
           </button>

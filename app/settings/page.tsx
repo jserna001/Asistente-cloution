@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
 import { createSupabaseBrowserClient } from '../../lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
@@ -40,6 +41,9 @@ export default function SettingsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -84,6 +88,56 @@ export default function SettingsPage() {
 
     loadUserData();
   }, [supabase]);
+  
+  useEffect(() => {
+    if (isLoading || !contentRef.current) return;
+
+    const ctx = gsap.context(() => {
+      const panels = gsap.utils.toArray<HTMLElement>('.tab-panel');
+      const initialPanel = panels.find(panel => panel.dataset.tab === activeTab);
+
+      gsap.set(panels, {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        autoAlpha: 0,
+      });
+
+      if (initialPanel) {
+        gsap.set(initialPanel, { autoAlpha: 1 });
+        gsap.set(contentRef.current, { height: initialPanel.offsetHeight });
+      }
+    }, contentRef);
+
+    return () => ctx.revert();
+  }, [isLoading]);
+
+  const handleTabChange = (newTab: Tab) => {
+    if (newTab === activeTab || isAnimating) return;
+
+    const outgoingPanel = contentRef.current?.querySelector<HTMLElement>(`[data-tab="${activeTab}"]`);
+    const incomingPanel = contentRef.current?.querySelector<HTMLElement>(`[data-tab="${newTab}"]`);
+
+    if (!outgoingPanel || !incomingPanel) return;
+
+    // Update state immediately for instant feedback on the tab button
+    setActiveTab(newTab);
+    setIsAnimating(true);
+    
+    const newHeight = incomingPanel.offsetHeight;
+
+    const tl = gsap.timeline({
+      onComplete: () => {
+        setIsAnimating(false);
+      }
+    });
+
+    // Animate height and content fade simultaneously
+    tl.to(contentRef.current, { height: newHeight, duration: 0.4, ease: 'power2.inOut' })
+      .to(outgoingPanel, { autoAlpha: 0, y: -15, duration: 0.3, ease: 'power2.in' }, 0)
+      .fromTo(incomingPanel, { y: 15 }, { autoAlpha: 1, y: 0, duration: 0.4, ease: 'power2.out' }, 0.1);
+  };
 
   const handleConnectNotion = () => {
     window.location.href = '/api/auth/notion/redirect';
@@ -259,7 +313,7 @@ export default function SettingsPage() {
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               style={{
                 padding: 'var(--space-3) var(--space-5)',
                 border: 'none',
@@ -293,13 +347,12 @@ export default function SettingsPage() {
       </div>
 
       {/* Content */}
-      <div style={{
+      <div ref={contentRef} className="tab-container" style={{
         maxWidth: '900px',
         margin: '0 auto',
       }}>
         {/* General Tab */}
-        {activeTab === 'general' && (
-          <div className="animate-fade-in">
+        <div className="tab-panel" data-tab="general">
             <div style={{
               backgroundColor: 'var(--bg-secondary)',
               border: '1px solid var(--border-primary)',
@@ -353,11 +406,9 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
-        )}
 
         {/* Connections Tab */}
-        {activeTab === 'connections' && (
-          <div className="animate-fade-in">
+        <div className="tab-panel" data-tab="connections">
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -371,7 +422,7 @@ export default function SettingsPage() {
                 padding: 'var(--space-6)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between)',
+                justifyContent: 'space-between',
               }}>
                 <div style={{
                   display: 'flex',
@@ -502,11 +553,9 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
-        )}
 
         {/* Preferences Tab */}
-        {activeTab === 'preferences' && (
-          <div className="animate-fade-in">
+        <div className="tab-panel" data-tab="preferences">
             <div style={{
               backgroundColor: 'var(--bg-secondary)',
               border: '1px solid var(--border-primary)',
@@ -730,11 +779,9 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
-        )}
 
         {/* Account Tab */}
-        {activeTab === 'account' && (
-          <div className="animate-fade-in">
+        <div className="tab-panel" data-tab="account">
             <div style={{
               backgroundColor: 'var(--bg-secondary)',
               border: '1px solid var(--border-primary)',
@@ -801,7 +848,6 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
-        )}
       </div>
     </div>
   );
