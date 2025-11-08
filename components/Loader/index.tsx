@@ -26,7 +26,7 @@ export default function Loader({
     mm.add("(min-width: 769px)", () => {
       // 1. Pre-posiciona los elementos para el layout de escritorio
       gsap.set(".ai-group", { x: 0 });
-      gsap.set(".cloution-text", { x: -170, y: 75, textAnchor: 'start' });
+      gsap.set(".cloution-text", { x: -210, y: 75, textAnchor: 'start' });
 
       // 2. Crea la línea de tiempo de escritorio
       const tl_desktop = gsap.timeline({
@@ -39,7 +39,7 @@ export default function Loader({
       tl_desktop.from(".i-line", { autoAlpha: 0, yPercent: 150, filter: 'blur(8px)', duration: 0.8, ease: 'power3.out' }, "<");
 
       // Fase 3: Revelación (Horizontal)
-      tl_desktop.to(".ai-group", { x: 140, duration: 1.2, ease: "expo.inOut" }, "+=0.5"); // Pausa de 0.5s
+      tl_desktop.to(".ai-group", { x: 100, duration: 1.2, ease: "expo.inOut" }, "+=0.5"); // Pausa de 0.5s
       tl_desktop.from(".cloution-text", { autoAlpha: 0, x: -30, duration: 0.9, ease: "expo.out" }, "<+0.3");
 
       // Pausa final
