@@ -1,0 +1,16 @@
+.loginContainer {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  place-items: center;
+  background-color: transparent; /* The background is on the main div in the page */
+  position: absolute;
+  top: 0;
+  left: 0;
+  
+  /* --- Initial state for the transition --- */
+  opacity: 0; 
+  transform: scale(0.8);
+  filter: blur(10px);
+  z-index: 99; /* Stays behind the loader */
+}

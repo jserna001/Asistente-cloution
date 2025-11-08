@@ -1,33 +1,36 @@
-/* /components/Loader.module.css */
-
 .loaderContainer {
   width: 100vw;
   height: 100vh;
   display: grid;
   place-items: center;
   background-color: #000;
-  /* El overflow: hidden asegura que las líneas 
-     no se vean antes de entrar */
   overflow: hidden; 
+  z-index: 100; /* Al frente por defecto */
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Sube el z-index para animarse POR ENCIMA del login */
+.transitioning {
+  z-index: 101; 
 }
 
 .logoSvg {
-  width: 400px; /* Tamaño del SVG en la pantalla */
-  /* overflow: visible permite que las rutas 
-     "vuelen" desde fuera del viewBox */
+  width: 400px;
   overflow: visible; 
   stroke: #FFFFFF;
   stroke-width: 8;
   stroke-linecap: round;
-  fill: none; /* No rellenar las líneas de AI */
+  fill: none;
 }
 
 .logoText {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 70px;
   font-weight: 500;
-  fill: #FFFFFF; /* El texto SÍ lleva relleno */
-  stroke: none;    /* El texto NO lleva trazo */
+  fill: #FFFFFF;
+  stroke: none;
 }
 
 /* Ocultar elementos por defecto para prevenir FOUC (Flash of Unstyled Content) */
