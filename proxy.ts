@@ -47,6 +47,12 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL('/', req.url))
   }
 
+  // 3.3. Permitir acceso a /onboarding para usuarios autenticados
+  // El onboarding ya maneja su propia lógica de verificación
+  if (user && pathname === '/onboarding') {
+    return res
+  }
+
   // 4. Si ninguna de las condiciones anteriores se cumple, continuar con la respuesta normal.
   return res
 }

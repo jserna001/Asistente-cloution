@@ -84,7 +84,41 @@ export async function GET(req: NextRequest) {
       throw dbError;
     }
 
-    // 4. Redirigir al usuario a la página principal con un estado de éxito.
+    // 4. Verificar si el usuario necesita completar el onboarding
+    const { data: onboardingStatus } = await supabase
+      .from('user_onboarding_status')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+
+    // Si no existe registro de onboarding, es un usuario nuevo
+    const isNewUser = !onboardingStatus;
+
+    if (isNewUser) {
+      // Crear registro inicial de onboarding
+      const { error: onboardingError } = await supabase
+        .from('user_onboarding_status')
+        .insert({
+          user_id: user.id,
+          current_step: 0,
+          full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+        });
+
+      if (onboardingError) {
+        console.error('Error al crear registro de onboarding:', onboardingError);
+        // No lanzamos error, solo logueamos - el onboarding no es crítico
+      }
+
+      // Redirigir al wizard de onboarding
+      return NextResponse.redirect(`${origin}/onboarding?status=new_user`);
+    }
+
+    // Si ya existe pero no completó el onboarding, redirigir también
+    if (!onboardingStatus.completed_at && !onboardingStatus.skipped_at) {
+      return NextResponse.redirect(`${origin}/onboarding?status=incomplete&step=${onboardingStatus.current_step}`);
+    }
+
+    // 5. Usuario existente que ya completó onboarding - redirigir a home
     return NextResponse.redirect(`${origin}/?status=success`);
 
   } catch (error) {

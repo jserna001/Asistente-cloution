@@ -26,6 +26,9 @@ import {
   Menu,
   ChevronDown,
   ChevronRight,
+  ArrowRight,
+  ArrowLeft,
+  Globe,
   Search,
   User,
   Mail,
@@ -91,6 +94,9 @@ export const XIcon = createIcon(X);
 export const MenuIcon = createIcon(Menu);
 export const ChevronDownIcon = createIcon(ChevronDown);
 export const ChevronRightIcon = createIcon(ChevronRight);
+export const ArrowRightIcon = createIcon(ArrowRight, 18);
+export const ArrowLeftIcon = createIcon(ArrowLeft, 18);
+export const GlobeIcon = createIcon(Globe, 16);
 export const MoreIcon = createIcon(MoreVertical);
 
 // Data & Content
@@ -194,6 +200,9 @@ export const Icons = {
   Menu: MenuIcon,
   ChevronDown: ChevronDownIcon,
   ChevronRight: ChevronRightIcon,
+  ArrowRight: ArrowRightIcon,
+  ArrowLeft: ArrowLeftIcon,
+  Globe: GlobeIcon,
   More: MoreIcon,
 
   // Content
