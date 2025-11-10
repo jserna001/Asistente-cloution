@@ -7,7 +7,7 @@
  * - Tipo de interacción
  */
 
-import type { AnimationPreset } from '../../components/IconAnimations/gsapPresets';
+import type { AnimationPreset } from '../../../components/IconAnimations/gsapPresets';
 import type { ModelType, NotificationType } from '../contexts/AnimationContext';
 
 // === ANIMACIONES POR MODELO AI ===
