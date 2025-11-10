@@ -159,8 +159,6 @@ export default function SettingsPage() {
     if (!confirm(confirmMessage)) return;
 
     try {
-      setMessage('Desconectando...');
-
       const { error } = await supabase
         .from('user_credentials')
         .delete()
