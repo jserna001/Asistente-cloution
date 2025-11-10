@@ -51,7 +51,7 @@ export interface UseSequenceReturn {
  */
 export const useSequence = (
   sequenceName: SequencePresetName,
-  elementOrElements: React.RefObject<HTMLElement> | React.RefObject<HTMLElement[]>,
+  elementOrElements: React.RefObject<HTMLElement | null> | React.RefObject<HTMLElement[] | null>,
   options: UseSequenceOptions = {}
 ): UseSequenceReturn => {
   const {
@@ -211,7 +211,7 @@ export const useSequence = (
  */
 export const useSequenceOnce = (
   sequenceName: SequencePresetName,
-  elementRef: React.RefObject<HTMLElement>,
+  elementRef: React.RefObject<HTMLElement | null>,
   options?: Omit<UseSequenceOptions, 'autoplay'>
 ): (() => void) => {
   const { play } = useSequence(sequenceName, elementRef, {
@@ -239,7 +239,7 @@ export const useSequenceOnce = (
  */
 export const useStaggerSequence = (
   sequenceName: 'staggerFadeIn' | 'staggerSlideIn' | 'typingIndicator',
-  elementsRef: React.RefObject<HTMLElement[]>,
+  elementsRef: React.RefObject<HTMLElement[] | null>,
   options?: UseSequenceOptions
 ): UseSequenceReturn => {
   return useSequence(sequenceName, elementsRef as any, options);
