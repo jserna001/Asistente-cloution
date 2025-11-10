@@ -9,6 +9,14 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['gsap', 'lucide-react'],
   },
 
+  // Configuración de Turbopack (Next.js 16+)
+  turbopack: {
+    resolveAlias: {
+      '@/lib/animations': './lib/animations',
+      '@/components': './components',
+    },
+  },
+
   // Configuración de webpack para optimizaciones adicionales
   webpack: (config, { dev, isServer }) => {
     // Optimizaciones de producción
