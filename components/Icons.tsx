@@ -241,4 +241,8 @@ export const Icons = {
 export { AnimatedIcon } from './AnimatedIcon';
 export type { AnimationPreset, TriggerType } from './IconAnimations/gsapPresets';
 
+// ============ Exportar ModelBadge ============
+
+export { ModelBadge } from './ModelBadge';
+
 export default Icons;

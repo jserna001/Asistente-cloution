@@ -17,7 +17,10 @@ import {
   SendIcon,
   SpinnerIcon,
   AnimatedIcon,
+  ModelBadge,
 } from '../components/Icons';
+import { AnimatedMessage } from '../components/AnimatedMessage';
+import { TypingIndicator } from '../components/TypingIndicator';
 
 gsap.registerPlugin(useGSAP);
 
@@ -33,56 +36,6 @@ interface Message {
   text: string;
   metadata?: MessageMetadata;
   timestamp: number;
-}
-
-// Componente de Badge de Modelo
-function ModelBadge({ model }: { model: string }) {
-  const getModelInfo = (modelName: string) => {
-    if (modelName.includes('flash')) {
-      return {
-        icon: <ZapIcon size={14} />,
-        label: 'Gemini Flash',
-        color: 'var(--model-gemini-flash)'
-      };
-    } else if (modelName.includes('gemini-2.5-pro')) {
-      return {
-        icon: <BrainIcon size={14} />,
-        label: 'Gemini Pro',
-        color: 'var(--model-gemini-pro)'
-      };
-    } else if (modelName.includes('claude')) {
-      return {
-        icon: <BotIcon size={14} />,
-        label: 'Claude Sonnet',
-        color: 'var(--model-claude)'
-      };
-    }
-    return {
-      icon: <BrainIcon size={14} />,
-      label: model,
-      color: 'var(--text-secondary)'
-    };
-  };
-
-  const { icon, label, color } = getModelInfo(model);
-
-  return (
-    <span className="icon-pop-in" style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 'var(--space-1)',
-      padding: 'var(--space-1) var(--space-2)',
-      borderRadius: 'var(--radius-full)',
-      backgroundColor: `${color}15`,
-      color: color,
-      fontSize: 'var(--text-xs)',
-      fontWeight: 'var(--font-medium)',
-      border: `1px solid ${color}30`,
-    }}>
-      {icon}
-      {label}
-    </span>
-  );
 }
 
 // Componente de Botón Copiar
@@ -159,7 +112,6 @@ function ChatUI() {
   const summaryRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const loadingIndicatorRef = useRef<HTMLDivElement>(null);
 
   // Cargar resumen diario
   async function loadDailySummary() {
@@ -315,28 +267,7 @@ function ChatUI() {
     }
   }, { dependencies: [messages.length], scope: containerRef });
 
-  // Animar indicador de "Pensando..."
-  useGSAP(() => {
-    if (isLoading && loadingIndicatorRef.current) {
-      const dot = loadingIndicatorRef.current.querySelector('.loading-dot');
-      if (dot) {
-        gsap.to(dot, {
-          opacity: 0.3,
-          duration: 0.8,
-          repeat: -1,
-          yoyo: true,
-          ease: 'power1.inOut',
-        });
-      }
-
-      gsap.from(loadingIndicatorRef.current, {
-        y: 20,
-        opacity: 0,
-        duration: 0.3,
-        ease: 'power2.out',
-      });
-    }
-  }, { dependencies: [isLoading], scope: containerRef });
+  // Animación del typing indicator ahora se maneja en el componente TypingIndicator
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -535,18 +466,9 @@ function ChatUI() {
         gap: 'var(--space-4)',
       }}>
         {messages.map((msg, index) => (
-          <div
-            key={index}
-            className="message-item"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-              gap: 'var(--space-2)',
-            }}
-          >
+          <AnimatedMessage key={index} sender={msg.sender}>
             {/* Mensaje */}
-            <div style={{
+            <div className="message-content" style={{
               padding: 'var(--space-4)',
               borderRadius: 'var(--radius-lg)',
               maxWidth: '80%',
@@ -591,31 +513,10 @@ function ChatUI() {
                 <CopyButton text={msg.text} />
               </div>
             )}
-          </div>
+          </AnimatedMessage>
         ))}
 
-        {isLoading && (
-          <div ref={loadingIndicatorRef} style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-2)',
-            padding: 'var(--space-4)',
-            borderRadius: 'var(--radius-lg)',
-            backgroundColor: 'var(--bg-secondary)',
-            border: '1px solid var(--border-primary)',
-            maxWidth: '80%',
-          }}>
-            <AnimatedIcon animation="pulse" trigger="loop">
-              <div className="loading-dot" style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: 'var(--accent-blue)',
-              }} />
-            </AnimatedIcon>
-            <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Pensando...</p>
-          </div>
-        )}
+        {isLoading && <TypingIndicator />}
 
         {messages.length === 0 && !isLoading && (
           <div style={{
