@@ -213,10 +213,10 @@ export const getInteractionAnimations = (
  */
 export const combineAnimationConfigs = (
   ...configs: Partial<StateAnimationConfig>[]
-): StateAnimationConfig => {
+): Partial<StateAnimationConfig> => {
   return configs.reduce(
     (acc, config) => ({ ...acc, ...config }),
-    {} as StateAnimationConfig
+    {} as Partial<StateAnimationConfig>
   );
 };
 
