@@ -114,10 +114,13 @@ export const animationFunctions: Record<AnimationPreset, (element: HTMLElement) 
 
   // Sacudida horizontal
   shake: (element) => {
-    return gsap.to(element, {
-      ...presetConfigs.shake,
-      x: [-10, 10, -10, 10, 0],
-    });
+    const tl = gsap.timeline();
+    tl.to(element, { x: -10, duration: 0.1 })
+      .to(element, { x: 10, duration: 0.1 })
+      .to(element, { x: -10, duration: 0.1 })
+      .to(element, { x: 10, duration: 0.1 })
+      .to(element, { x: 0, duration: 0.1 });
+    return tl;
   },
 
   // Pulso de escala
@@ -159,10 +162,14 @@ export const animationFunctions: Record<AnimationPreset, (element: HTMLElement) 
 
   // Wiggle (rotación rápida)
   wiggle: (element) => {
-    return gsap.to(element, {
-      ...presetConfigs.wiggle,
-      rotation: [0, -15, 15, -15, 15, 0],
-    });
+    const tl = gsap.timeline();
+    const duration = presetConfigs.wiggle.duration / 5; // Dividir en 5 pasos
+    tl.to(element, { rotation: -15, duration })
+      .to(element, { rotation: 15, duration })
+      .to(element, { rotation: -15, duration })
+      .to(element, { rotation: 15, duration })
+      .to(element, { rotation: 0, duration });
+    return tl;
   },
 
   // Heartbeat (dos pulsos)
