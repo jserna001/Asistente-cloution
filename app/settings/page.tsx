@@ -258,6 +258,7 @@ export default function SettingsPage() {
           </div>
           <button
             onClick={() => router.push('/')}
+            className="icon-click-bounce"
             style={{
               padding: 'var(--space-3) var(--space-4)',
               borderRadius: 'var(--radius-md)',
@@ -278,7 +279,9 @@ export default function SettingsPage() {
               e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
             }}
           >
-            <HomeIcon size={16} />
+            <span className="icon-hover-scale" style={{ display: 'flex' }}>
+              <HomeIcon size={16} />
+            </span>
             Volver al Chat
           </button>
         </div>
@@ -319,7 +322,9 @@ export default function SettingsPage() {
                 }
               }}
             >
-              {tab.icon}
+              <span className="icon-hover-scale" style={{ display: 'flex' }}>
+                {tab.icon}
+              </span>
               {tab.label}
             </button>
           ))}
@@ -409,7 +414,9 @@ export default function SettingsPage() {
                   alignItems: 'center',
                   gap: 'var(--space-4)',
                 }}>
-                  <GoogleIcon size={32} />
+                  <span className="icon-breathe" style={{ display: 'flex' }}>
+                    <GoogleIcon size={32} />
+                  </span>
                   <div>
                     <div style={{
                       fontSize: 'var(--text-lg)',
@@ -428,7 +435,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 {connections.google ? (
-                  <div style={{
+                  <div className="icon-pop-in" style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 'var(--space-2)',
@@ -438,11 +445,13 @@ export default function SettingsPage() {
                     color: 'var(--status-success)',
                     fontSize: 'var(--text-sm)',
                   }}>
-                    <CheckCircleIcon size={16} />
+                    <span className="icon-success-pulse" style={{ display: 'flex' }}>
+                      <CheckCircleIcon size={16} />
+                    </span>
                     Conectado
                   </div>
                 ) : (
-                  <div style={{
+                  <div className="icon-pop-in" style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 'var(--space-2)',
@@ -452,7 +461,9 @@ export default function SettingsPage() {
                     color: 'var(--status-warning)',
                     fontSize: 'var(--text-sm)',
                   }}>
-                    <AlertIcon size={16} />
+                    <span className="icon-shake" style={{ display: 'flex' }}>
+                      <AlertIcon size={16} />
+                    </span>
                     No conectado
                   </div>
                 )}
@@ -473,7 +484,9 @@ export default function SettingsPage() {
                   alignItems: 'center',
                   gap: 'var(--space-4)',
                 }}>
-                  <NotionIcon size={32} />
+                  <span className="icon-breathe" style={{ display: 'flex' }}>
+                    <NotionIcon size={32} />
+                  </span>
                   <div>
                     <div style={{
                       fontSize: 'var(--text-lg)',
@@ -493,7 +506,7 @@ export default function SettingsPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                   {connections.notion && (
-                    <div style={{
+                    <div className="icon-pop-in" style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: 'var(--space-2)',
@@ -503,12 +516,15 @@ export default function SettingsPage() {
                       color: 'var(--status-success)',
                       fontSize: 'var(--text-sm)',
                     }}>
-                      <CheckCircleIcon size={16} />
+                      <span className="icon-success-pulse" style={{ display: 'flex' }}>
+                        <CheckCircleIcon size={16} />
+                      </span>
                       Conectado
                     </div>
                   )}
                   <button
                     onClick={() => connections.notion ? handleDisconnect('notion') : handleConnectNotion()}
+                    className="icon-click-bounce"
                     style={{
                       padding: 'var(--space-2) var(--space-4)',
                       borderRadius: 'var(--radius-md)',

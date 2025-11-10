@@ -8,7 +8,7 @@ import { useGSAP } from '@gsap/react';
 
 import Loader from '../../components/Loader';
 import { createSupabaseBrowserClient } from '../../lib/supabaseClient';
-import { GoogleIcon, BotIcon, SparklesIcon } from '../../components/Icons';
+import { GoogleIcon, BotIcon, SparklesIcon, AnimatedIcon } from '../../components/Icons';
 import styles from '../LoginPage.module.css';
 
 // --- UI Component for the detailed Login Screen ---
@@ -97,7 +97,9 @@ function LoginUI({ isTransitioning }: { isTransitioning: boolean }) {
                         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <div style={{ position: 'absolute', width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(139, 92, 246, 0.2))', filter: 'blur(20px)' }} />
                             <div style={{ position: 'relative', width: '64px', height: '64px', borderRadius: 'var(--radius-xl)', background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-glow-blue)' }}>
-                                <BotIcon size={32} color="white" />
+                                <span className="icon-breathe" style={{ display: 'flex' }}>
+                                    <BotIcon size={32} color="white" />
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -105,40 +107,43 @@ function LoginUI({ isTransitioning }: { isTransitioning: boolean }) {
                         <h1 style={{ fontSize: 'var(--text-4xl)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-3)', background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Asistente Cloution</h1>
                         <p style={{ fontSize: 'var(--text-base)', color: 'var(--text-secondary)', marginBottom: 'var(--space-2)' }}>Tu asistente personal impulsado por IA</p>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)', fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>
-                            <SparklesIcon size={14} />
+                            <AnimatedIcon animation="glow" trigger="loop">
+                                <SparklesIcon size={14} />
+                            </AnimatedIcon>
                             <span>Multi-modelo • RAG • Notion • Gmail</span>
                         </div>
                     </div>
-                    <button 
-                        onClick={handleLoginWithGoogle} 
-                        style={{ 
-                            width: '100%', 
-                            padding: 'var(--space-4)', 
-                            borderRadius: 'var(--radius-lg)', 
-                            border: '1px solid var(--border-primary)', 
-                            backgroundColor: 'var(--bg-elevated)', 
-                            color: 'var(--text-primary)', 
-                            fontSize: 'var(--text-base)', 
-                            fontWeight: 'var(--font-semibold)', 
-                            cursor: 'pointer', 
-                            transition: 'all var(--transition-base)', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            gap: 'var(--space-3)', 
-                            position: 'relative', 
-                            overflow: 'hidden' 
+                    <button
+                        onClick={handleLoginWithGoogle}
+                        className="icon-click-bounce"
+                        style={{
+                            width: '100%',
+                            padding: 'var(--space-4)',
+                            borderRadius: 'var(--radius-lg)',
+                            border: '1px solid var(--border-primary)',
+                            backgroundColor: 'var(--bg-elevated)',
+                            color: 'var(--text-primary)',
+                            fontSize: 'var(--text-base)',
+                            fontWeight: 'var(--font-semibold)',
+                            cursor: 'pointer',
+                            transition: 'all var(--transition-base)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 'var(--space-3)',
+                            position: 'relative',
+                            overflow: 'hidden'
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
                             e.currentTarget.style.borderColor = 'var(--border-focus)';
                             e.currentTarget.style.transform = 'translateY(-2px)';
                             e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.2)';
-                            
+
                             const glint = e.currentTarget.querySelector('.glint-span');
                             if (glint) {
-                                gsap.fromTo(glint, 
-                                { xPercent: -150 }, 
+                                gsap.fromTo(glint,
+                                { xPercent: -150 },
                                 { xPercent: 600, duration: 1.2, ease: 'power1.inOut' }
                                 );
                             }
@@ -163,7 +168,9 @@ function LoginUI({ isTransitioning }: { isTransitioning: boolean }) {
                                 pointerEvents: 'none',
                             }}
                         />
-                        <GoogleIcon size={20} />
+                        <span className="icon-hover-scale" style={{ display: 'flex' }}>
+                            <GoogleIcon size={20} />
+                        </span>
                         Iniciar sesión con Google
                     </button>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', margin: 'var(--space-8) 0' }}>

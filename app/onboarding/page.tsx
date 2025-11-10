@@ -289,7 +289,9 @@ function OnboardingContent() {
                 boxShadow: 'var(--shadow-glow-blue)',
               }}
             >
-              <BotIcon size={28} color="white" />
+              <span className="icon-breathe" style={{ display: 'flex' }}>
+                <BotIcon size={28} color="white" />
+              </span>
             </div>
             <h1
               style={{
@@ -368,6 +370,7 @@ function OnboardingContent() {
               <button
                 onClick={handleBack}
                 disabled={isLoading}
+                className={!isLoading ? 'icon-click-bounce' : ''}
                 style={{
                   padding: 'var(--space-3) var(--space-5)',
                   borderRadius: 'var(--radius-lg)',
@@ -384,7 +387,9 @@ function OnboardingContent() {
                   opacity: isLoading ? 0.5 : 1,
                 }}
               >
-                <ArrowLeftIcon size={18} />
+                <span className="icon-hover-scale" style={{ display: 'flex' }}>
+                  <ArrowLeftIcon size={18} />
+                </span>
                 Atrás
               </button>
             )}
@@ -410,6 +415,7 @@ function OnboardingContent() {
             <button
               onClick={handleNext}
               disabled={!canProceed() || isLoading}
+              className={canProceed() && !isLoading ? 'icon-click-bounce' : ''}
               style={{
                 flex: 1,
                 padding: 'var(--space-3) var(--space-6)',
@@ -435,13 +441,17 @@ function OnboardingContent() {
                 'Guardando...'
               ) : currentStep === 3 ? (
                 <>
-                  <CheckCircleIcon size={18} />
+                  <span className="icon-success-pulse" style={{ display: 'flex' }}>
+                    <CheckCircleIcon size={18} />
+                  </span>
                   Completar
                 </>
               ) : (
                 <>
                   Siguiente
-                  <ArrowRightIcon size={18} />
+                  <span className="icon-hover-scale" style={{ display: 'flex' }}>
+                    <ArrowRightIcon size={18} />
+                  </span>
                 </>
               )}
             </button>
