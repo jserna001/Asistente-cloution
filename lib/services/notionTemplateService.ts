@@ -190,43 +190,75 @@ export async function installNotionTemplate(
     const notion = new NotionClient({ auth: notionAccessToken });
 
     // Buscar una página raíz en el workspace del usuario donde colocar la plantilla
-    // Si no hay, Notion creará la página en el workspace principal
-    console.log('[TEMPLATE] Buscando páginas disponibles en el workspace...');
+    console.log('[TEMPLATE] Buscando workspace del usuario...');
+
+    // Intentamos buscar cualquier página existente para usarla como parent
     const searchResult = await notion.search({
       filter: { property: 'object', value: 'page' },
-      page_size: 1
+      page_size: 10,
+      sort: { direction: 'descending', timestamp: 'last_edited_time' }
     });
 
-    let parentConfig: any;
+    let parentPageId: string;
+
     if (searchResult.results.length > 0) {
-      // Usar la primera página encontrada como parent
-      const firstPage: any = searchResult.results[0];
-      parentConfig = {
-        type: 'page_id',
-        page_id: firstPage.id
-      };
-      console.log(`[TEMPLATE] Usando página existente como parent: ${firstPage.id}`);
+      // Usar la página más reciente como parent
+      const recentPage: any = searchResult.results[0];
+      const pageName = recentPage.properties?.title?.title?.[0]?.text?.content || 'Untitled';
+      console.log(`[TEMPLATE] Creando plantilla dentro de: "${pageName}" (${recentPage.id})`);
+
+      const parentPageResult = await notion.pages.create({
+        parent: {
+          type: 'page_id',
+          page_id: recentPage.id
+        },
+        properties: {
+          title: {
+            title: [{ text: { content: `📦 ${template.name}` } }]
+          }
+        },
+        icon: { type: 'emoji', emoji: template.icon || '📁' }
+      });
+
+      parentPageId = extractPageId(parentPageResult);
     } else {
-      // Si no hay páginas, usar el workspace directamente
-      // En este caso, necesitamos crear la página sin parent específico
-      console.log('[TEMPLATE] No hay páginas disponibles, creando en workspace raíz');
-      // La API de Notion requiere un parent, así que crearemos una página temporal primero
-      // o usaremos el integration token's workspace
-      throw new Error('No se encontraron páginas en el workspace. Por favor, crea al menos una página en Notion primero.');
+      // Si no hay páginas, buscar bases de datos
+      console.log('[TEMPLATE] No se encontraron páginas, buscando bases de datos...');
+      const dbSearchResult = await notion.search({
+        filter: { property: 'object', value: 'database' },
+        page_size: 1
+      });
+
+      if (dbSearchResult.results.length > 0) {
+        // Crear como página hija de una database
+        const database: any = dbSearchResult.results[0];
+        console.log(`[TEMPLATE] Creando plantilla en database: ${database.id}`);
+
+        const parentPageResult = await notion.pages.create({
+          parent: {
+            type: 'database_id',
+            database_id: database.id
+          },
+          properties: {
+            title: {
+              title: [{ text: { content: `📦 ${template.name}` } }]
+            }
+          },
+          icon: { type: 'emoji', emoji: template.icon || '📁' }
+        });
+
+        parentPageId = extractPageId(parentPageResult);
+      } else {
+        // Último recurso: el usuario debe crear al menos una página manualmente
+        throw new Error(
+          'No se encontraron páginas ni bases de datos en tu workspace de Notion. ' +
+          'Por favor, abre Notion, crea una página nueva y vuelve a intentar la instalación.'
+        );
+      }
     }
 
-    const parentPageResult = await notion.pages.create({
-      parent: parentConfig,
-      properties: {
-        title: {
-          title: [{ text: { content: template.name } }]
-        }
-      }
-    });
-
-    const parentPageId = extractPageId(parentPageResult);
     installedIds['parent_page_id'] = parentPageId;
-    console.log(`[TEMPLATE] ✓ Workspace creado: ${parentPageId}`);
+    console.log(`[TEMPLATE] ✓ Workspace de plantilla creado: ${parentPageId}`);
 
     await updateInstallationProgress(userId, templatePackId, 20);
 
