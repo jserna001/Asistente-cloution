@@ -344,7 +344,7 @@ body {
     transform: scale(1);
   }
   50% {
-    transform: scale(1.03);
+    transform: scale(1.05); /* Aumentado de 1.03 a 1.05 para ser más visible */
   }
 }
 
@@ -369,6 +369,8 @@ body {
 /* Clases para iconos interactivos */
 .icon-hover-lift {
   transition: transform var(--transition-base);
+  display: inline-flex !important;
+  will-change: transform;
 }
 
 .icon-hover-lift:hover {
@@ -378,34 +380,43 @@ body {
 .icon-hover-scale {
   transition: transform var(--transition-fast);
   cursor: pointer;
+  display: inline-flex !important;
+  will-change: transform;
 }
 
 .icon-hover-scale:hover {
-  transform: scale(1.1);
+  transform: scale(1.15) !important; /* Aumentado de 1.1 a 1.15 para ser más visible */
 }
 
 .icon-hover-rotate {
   transition: transform var(--transition-base);
+  display: inline-flex !important;
+  will-change: transform;
 }
 
 .icon-hover-rotate:hover {
-  transform: rotate(5deg);
+  transform: rotate(10deg) !important; /* Aumentado de 5deg a 10deg para ser más visible */
 }
 
 .icon-click-bounce {
   cursor: pointer;
+  display: inline-flex !important;
+  will-change: transform;
 }
 
 .icon-click-bounce:active {
-  animation: iconClickBounce 0.2s ease-in-out;
+  animation: iconClickBounce 0.2s ease-in-out !important;
 }
 
 .icon-shake {
   animation: iconShake 0.5s ease-in-out;
+  display: inline-flex !important;
+  will-change: transform;
 }
 
 .icon-ping {
   position: relative;
+  display: inline-flex !important;
 }
 
 .icon-ping::before {
@@ -423,18 +434,26 @@ body {
 
 .icon-pop-in {
   animation: iconPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: inline-flex !important;
+  will-change: transform;
 }
 
 .icon-fade-rotate {
   animation: iconFadeRotate 0.5s ease-out;
+  display: inline-flex !important;
+  will-change: transform;
 }
 
 .icon-breathe {
-  animation: iconBreathe 3s ease-in-out infinite;
+  animation: iconBreathe 2s ease-in-out infinite !important; /* Reducido de 3s a 2s para ser más visible */
+  display: inline-flex !important;
+  will-change: transform;
 }
 
 .icon-success-pulse {
   animation: iconSuccessPulse 0.6s ease-in-out;
+  display: inline-flex !important;
+  will-change: transform;
 }
 
 /* ============ Accesibilidad - Reduced Motion ============ */
