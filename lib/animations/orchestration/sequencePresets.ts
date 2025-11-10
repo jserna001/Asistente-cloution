@@ -324,10 +324,10 @@ export const logoReveal = (
 };
 
 /**
- * Card Flip
+ * Card Flip (original function for direct use)
  * Flip 3D de tarjeta con contenido
  */
-export const cardFlip = (
+export const cardFlipDirect = (
   front: HTMLElement,
   back: HTMLElement,
   config?: SequenceConfig
@@ -362,6 +362,26 @@ export const cardFlip = (
   );
 
   return tl;
+};
+
+/**
+ * Card Flip (wrapper for use with standard signature)
+ * Expects element to be a container with two children (front and back)
+ */
+export const cardFlip = (
+  element: HTMLElement,
+  config?: SequenceConfig
+): gsap.core.Timeline => {
+  const children = element.children;
+  if (children.length < 2) {
+    console.warn('cardFlip: element must have at least 2 children (front and back)');
+    return gsap.timeline();
+  }
+
+  const front = children[0] as HTMLElement;
+  const back = children[1] as HTMLElement;
+
+  return cardFlipDirect(front, back, config);
 };
 
 /**
