@@ -319,8 +319,12 @@ COMMENT ON COLUMN user_preferences.frequency IS 'Frecuencia del resumen: daily, 
 -- 9. VIEWS ÚTILES (OPCIONAL)
 -- =====================================================
 
+-- Primero eliminar cualquier objeto existente con ese nombre
+DROP VIEW IF EXISTS user_onboarding_status CASCADE;
+DROP TABLE IF EXISTS user_onboarding_status CASCADE;
+
 -- Vista para ver el estado de onboarding de usuarios
-CREATE OR REPLACE VIEW user_onboarding_status AS
+CREATE VIEW user_onboarding_status AS
 SELECT
   u.id as user_id,
   u.email,
