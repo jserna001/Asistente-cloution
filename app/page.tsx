@@ -66,7 +66,7 @@ function ModelBadge({ model }: { model: string }) {
   const { icon, label, color } = getModelInfo(model);
 
   return (
-    <span style={{
+    <span className="icon-pop-in" style={{
       display: 'inline-flex',
       alignItems: 'center',
       gap: 'var(--space-1)',
@@ -97,6 +97,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
+      className="icon-click-bounce"
       style={{
         padding: 'var(--space-1) var(--space-2)',
         borderRadius: 'var(--radius-md)',
@@ -121,12 +122,16 @@ function CopyButton({ text }: { text: string }) {
     >
       {copied ? (
         <>
-          <CheckIcon size={14} />
+          <span className="icon-success-pulse" style={{ display: 'flex' }}>
+            <CheckIcon size={14} />
+          </span>
           Copiado
         </>
       ) : (
         <>
-          <CopyIcon size={14} />
+          <span className="icon-hover-scale" style={{ display: 'flex' }}>
+            <CopyIcon size={14} />
+          </span>
           Copiar
         </>
       )}
@@ -431,7 +436,9 @@ function ChatUI() {
           alignItems: 'center',
           gap: 'var(--space-2)',
         }}>
-          <BotIcon size={28} color="var(--accent-purple)" />
+          <span className="icon-breathe" style={{ display: 'flex' }}>
+            <BotIcon size={28} color="var(--accent-purple)" />
+          </span>
           Asistente Cloution
         </h1>
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
@@ -451,7 +458,9 @@ function ChatUI() {
               gap: 'var(--space-2)',
             }}
           >
-            <SettingsIcon size={16} />
+            <span className="icon-hover-rotate" style={{ display: 'flex' }}>
+              <SettingsIcon size={16} />
+            </span>
             Ajustes
           </button>
           <button
@@ -470,7 +479,9 @@ function ChatUI() {
               gap: 'var(--space-2)',
             }}
           >
-            <LogOutIcon size={16} />
+            <span className="icon-hover-scale" style={{ display: 'flex' }}>
+              <LogOutIcon size={16} />
+            </span>
             Cerrar Sesión
           </button>
         </div>
@@ -495,7 +506,9 @@ function ChatUI() {
               alignItems: 'center',
               gap: 'var(--space-2)',
             }}>
-              <CalendarIcon size={16} />
+              <span className="icon-fade-rotate" style={{ display: 'flex' }}>
+                <CalendarIcon size={16} />
+              </span>
               {summaryDate}
             </div>
           )}
@@ -649,6 +662,7 @@ function ChatUI() {
         <button
           type="submit"
           disabled={isLoading || !currentQuery.trim()}
+          className={!isLoading && currentQuery.trim() ? 'icon-click-bounce' : ''}
           style={{
             padding: 'var(--space-3) var(--space-6)',
             borderRadius: 'var(--radius-md)',
@@ -665,7 +679,13 @@ function ChatUI() {
             gap: 'var(--space-2)',
           }}
         >
-          {isLoading ? <SpinnerIcon size={16} /> : <SendIcon size={16} />}
+          {isLoading ? (
+            <SpinnerIcon size={16} />
+          ) : (
+            <span className="icon-hover-scale" style={{ display: 'flex' }}>
+              <SendIcon size={16} />
+            </span>
+          )}
           Enviar
         </button>
       </form>

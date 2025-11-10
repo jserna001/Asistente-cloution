@@ -204,6 +204,152 @@ body {
   }
 }
 
+/* ============ Animaciones de Iconos ============ */
+
+/* Hover - Lift suave para botones */
+@keyframes iconHoverLift {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* Hover - Rotación sutil */
+@keyframes iconHoverRotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(5deg);
+  }
+}
+
+/* Hover - Scale suave */
+@keyframes iconHoverScale {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.1);
+  }
+}
+
+/* Click - Bounce al hacer click */
+@keyframes iconClickBounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.9);
+  }
+}
+
+/* Estado - Shake para llamar atención */
+@keyframes iconShake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+/* Estado - Ping (círculo expandiéndose) */
+@keyframes iconPing {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  75%, 100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* Entrada - Pop in con bounce */
+@keyframes iconPopIn {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Entrada - Fade con rotación */
+@keyframes iconFadeRotate {
+  0% {
+    opacity: 0;
+    transform: rotate(-45deg) scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+/* Especial - Fly out (para Send icon) */
+@keyframes iconFlyOut {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(20px, -20px) rotate(45deg);
+    opacity: 0;
+  }
+}
+
+/* Especial - Check swap (para Copy → Check) */
+@keyframes iconCheckSwap {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(0) rotate(180deg);
+  }
+  100% {
+    transform: scale(1) rotate(360deg);
+  }
+}
+
+/* Especial - Success pulse con glow */
+@keyframes iconSuccessPulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0px currentColor);
+  }
+  50% {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+}
+
+/* Especial - Breathe (respiración sutil) */
+@keyframes iconBreathe {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+/* ============ Clases Utilitarias de Animación ============ */
+
 .animate-fade-in {
   animation: fadeIn var(--transition-base);
 }
@@ -218,4 +364,97 @@ body {
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+/* Clases para iconos interactivos */
+.icon-hover-lift {
+  transition: transform var(--transition-base);
+}
+
+.icon-hover-lift:hover {
+  animation: iconHoverLift 0.3s ease-in-out;
+}
+
+.icon-hover-scale {
+  transition: transform var(--transition-fast);
+  cursor: pointer;
+}
+
+.icon-hover-scale:hover {
+  transform: scale(1.1);
+}
+
+.icon-hover-rotate {
+  transition: transform var(--transition-base);
+}
+
+.icon-hover-rotate:hover {
+  transform: rotate(5deg);
+}
+
+.icon-click-bounce {
+  cursor: pointer;
+}
+
+.icon-click-bounce:active {
+  animation: iconClickBounce 0.2s ease-in-out;
+}
+
+.icon-shake {
+  animation: iconShake 0.5s ease-in-out;
+}
+
+.icon-ping {
+  position: relative;
+}
+
+.icon-ping::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: currentColor;
+  transform: translate(-50%, -50%);
+  animation: iconPing 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.icon-pop-in {
+  animation: iconPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.icon-fade-rotate {
+  animation: iconFadeRotate 0.5s ease-out;
+}
+
+.icon-breathe {
+  animation: iconBreathe 3s ease-in-out infinite;
+}
+
+.icon-success-pulse {
+  animation: iconSuccessPulse 0.6s ease-in-out;
+}
+
+/* ============ Accesibilidad - Reduced Motion ============ */
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-hover-lift:hover,
+  .icon-hover-scale:hover,
+  .icon-hover-rotate:hover,
+  .icon-click-bounce:active,
+  .icon-shake,
+  .icon-ping,
+  .icon-pop-in,
+  .icon-fade-rotate,
+  .icon-breathe,
+  .icon-success-pulse {
+    animation: none;
+    transform: none;
+  }
+
+  .icon-hover-scale:hover {
+    transform: scale(1.05); /* Reducido pero no eliminado */
+  }
 }
