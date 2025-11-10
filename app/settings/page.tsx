@@ -18,7 +18,9 @@ import {
   ClockIcon,
   CheckIcon,
   XIcon,
+  AnimatedIcon,
 } from '../../components/Icons';
+import { useNotifications, useAnimationContext } from '@/lib/animations';
 
 interface UserPreferences {
   daily_summary_enabled: boolean;
@@ -31,6 +33,9 @@ type Tab = 'general' | 'connections' | 'preferences' | 'account';
 export default function SettingsPage() {
   const supabase = createSupabaseBrowserClient();
   const router = useRouter();
+  const { triggerSuccess, triggerError } = useNotifications();
+  const { setLoading } = useAnimationContext();
+
   const [activeTab, setActiveTab] = useState<Tab>('general');
   const [user, setUser] = useState<User | null>(null);
   const [connections, setConnections] = useState({ google: false, notion: false });
@@ -41,7 +46,6 @@ export default function SettingsPage() {
     timezone: 'America/Bogota',
   });
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
 
   const contentRef = useRef<HTMLDivElement>(null);
@@ -165,12 +169,10 @@ export default function SettingsPage() {
       if (error) throw error;
 
       setConnections(prev => ({ ...prev, [serviceName]: false }));
-      setMessage(`${serviceName === 'notion' ? 'Notion' : 'Google'} desconectado correctamente`);
-
-      setTimeout(() => setMessage(null), 3000);
+      triggerSuccess(`${serviceName === 'notion' ? 'Notion' : 'Google'} desconectado correctamente`);
     } catch (error: any) {
       console.error(`Error desconectando ${serviceName}:`, error);
-      setMessage(`Error al desconectar: ${error.message}`);
+      triggerError(`Error al desconectar: ${error.message}`);
     }
   };
 
@@ -183,7 +185,7 @@ export default function SettingsPage() {
     if (!user) return;
 
     setSaving(true);
-    setMessage(null);
+    setLoading(true);
 
     try {
       const { error } = await supabase
@@ -197,13 +199,13 @@ export default function SettingsPage() {
 
       if (error) throw error;
 
-      setMessage('Preferencias guardadas correctamente');
-      setTimeout(() => setMessage(null), 3000);
+      triggerSuccess('Preferencias guardadas correctamente');
     } catch (error: any) {
       console.error('Error guardando preferencias:', error);
-      setMessage(`Error: ${error.message}`);
+      triggerError(`Error: ${error.message}`);
     } finally {
       setSaving(false);
+      setLoading(false);
     }
   };
 
@@ -739,40 +741,27 @@ export default function SettingsPage() {
               >
                 {saving ? (
                   <>
-                    <div className="animate-spin" style={{
-                      width: '16px',
-                      height: '16px',
-                      border: '2px solid white',
-                      borderTopColor: 'transparent',
-                      borderRadius: '50%',
-                    }} />
+                    <AnimatedIcon animation="spin" trigger="loop">
+                      <div style={{
+                        width: '16px',
+                        height: '16px',
+                        border: '2px solid white',
+                        borderTopColor: 'transparent',
+                        borderRadius: '50%',
+                      }} />
+                    </AnimatedIcon>
                     Guardando...
                   </>
                 ) : (
                   <>
-                    <CheckIcon size={16} />
+                    <AnimatedIcon animation="bounce" trigger="hover">
+                      <CheckIcon size={16} />
+                    </AnimatedIcon>
                     Guardar cambios
                   </>
                 )}
               </button>
 
-              {/* Message */}
-              {message && (
-                <div style={{
-                  marginTop: 'var(--space-4)',
-                  padding: 'var(--space-3) var(--space-4)',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: message.includes('Error') ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                  color: message.includes('Error') ? 'var(--status-error)' : 'var(--status-success)',
-                  fontSize: 'var(--text-sm)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-2)',
-                }}>
-                  {message.includes('Error') ? <XIcon size={16} /> : <CheckIcon size={16} />}
-                  {message}
-                </div>
-              )}
             </div>
           </div>
 
