@@ -94,6 +94,8 @@ function CopyButton({ text }: { text: string }) {
 }
 
 import Loader from '../components/Loader';
+import OnboardingWizard from '../components/onboarding/OnboardingWizard';
+import '../components/onboarding/OnboardingWizard.css';
 
 function ChatUI() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -102,6 +104,10 @@ function ChatUI() {
   const [authStatus, setAuthStatus] = useState<string | null>(null);
   const [dailySummary, setDailySummary] = useState<string | null>(null);
   const [summaryDate, setSummaryDate] = useState<string | null>(null);
+
+  // Estados para onboarding
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -193,11 +199,51 @@ function ChatUI() {
     }
   }
 
+  // Verificar si el usuario necesita onboarding
+  async function checkOnboardingStatus() {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        console.log('Usuario no autenticado');
+        setCheckingOnboarding(false);
+        return;
+      }
+
+      // Consultar si el usuario ha completado el onboarding
+      const { data: preferences, error: prefError } = await supabase
+        .from('user_preferences')
+        .select('onboarding_completed')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (prefError) {
+        console.error('Error consultando preferencias:', prefError);
+        setCheckingOnboarding(false);
+        return;
+      }
+
+      // Si no tiene preferencias o no ha completado onboarding, mostrar wizard
+      if (!preferences || !preferences.onboarding_completed) {
+        console.log('Usuario necesita completar onboarding');
+        setShowOnboarding(true);
+      }
+
+      setCheckingOnboarding(false);
+    } catch (error) {
+      console.error('Error verificando onboarding:', error);
+      setCheckingOnboarding(false);
+    }
+  }
+
   useEffect(() => {
     const status = searchParams.get('status');
     if (status === 'notion_connected') {
       setAuthStatus('¡Conexión con Notion exitosa!');
     }
+
+    // Verificar onboarding primero
+    checkOnboardingStatus();
 
     loadDailySummary();
   }, [searchParams]);
@@ -566,6 +612,19 @@ function ChatUI() {
           Enviar
         </button>
       </form>
+
+      {/* Onboarding Wizard */}
+      {showOnboarding && !checkingOnboarding && (
+        <OnboardingWizard
+          onComplete={() => {
+            setShowOnboarding(false);
+            loadDailySummary(); // Recargar resumen después de completar onboarding
+          }}
+          onSkip={() => {
+            setShowOnboarding(false);
+          }}
+        />
+      )}
     </div>
   );
 }
