@@ -239,34 +239,7 @@ function ChatUI() {
     }
   }, [messages]);
 
-  // Animar nuevos mensajes
-  useGSAP(() => {
-    const messageElements = messagesContainerRef.current?.querySelectorAll('.message-item');
-    if (messageElements && messageElements.length > 0) {
-      const lastMessage = messageElements[messageElements.length - 1];
-      gsap.from(lastMessage, {
-        y: 30,
-        opacity: 0,
-        scale: 0.95,
-        duration: 0.4,
-        ease: 'power3.out',
-      });
-
-      // Animar metadata con stagger
-      const metadataElements = lastMessage.querySelectorAll('.message-metadata > *');
-      if (metadataElements.length > 0) {
-        gsap.from(metadataElements, {
-          y: 10,
-          opacity: 0,
-          duration: 0.3,
-          stagger: 0.05,
-          ease: 'power2.out',
-          delay: 0.2,
-        });
-      }
-    }
-  }, { dependencies: [messages.length], scope: containerRef });
-
+  // Animaciones de mensajes ahora se manejan en AnimatedMessage component
   // Animación del typing indicator ahora se maneja en el componente TypingIndicator
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

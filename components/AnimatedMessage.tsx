@@ -18,16 +18,16 @@ interface AnimatedMessageProps {
 export const AnimatedMessage: React.FC<AnimatedMessageProps> = ({
   children,
   sender,
-  autoplay = true,
+  autoplay = false, // Desactivado temporalmente para debugging
 }) => {
   const messageRef = useRef<HTMLDivElement>(null);
 
-  // Aplicar secuencia de entrada
-  useSequence('messageEntry', messageRef, {
-    autoplay,
-    respectReducedMotion: true,
-    trackPerformance: true,
-  });
+  // Aplicar secuencia de entrada (desactivado por ahora)
+  // useSequence('messageEntry', messageRef, {
+  //   autoplay,
+  //   respectReducedMotion: true,
+  //   trackPerformance: true,
+  // });
 
   return (
     <div
