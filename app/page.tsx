@@ -17,6 +17,7 @@ import {
   SendIcon,
   SpinnerIcon,
   AnimatedIcon,
+  ModelBadge,
 } from '../components/Icons';
 
 gsap.registerPlugin(useGSAP);
@@ -33,56 +34,6 @@ interface Message {
   text: string;
   metadata?: MessageMetadata;
   timestamp: number;
-}
-
-// Componente de Badge de Modelo
-function ModelBadge({ model }: { model: string }) {
-  const getModelInfo = (modelName: string) => {
-    if (modelName.includes('flash')) {
-      return {
-        icon: <ZapIcon size={14} />,
-        label: 'Gemini Flash',
-        color: 'var(--model-gemini-flash)'
-      };
-    } else if (modelName.includes('gemini-2.5-pro')) {
-      return {
-        icon: <BrainIcon size={14} />,
-        label: 'Gemini Pro',
-        color: 'var(--model-gemini-pro)'
-      };
-    } else if (modelName.includes('claude')) {
-      return {
-        icon: <BotIcon size={14} />,
-        label: 'Claude Sonnet',
-        color: 'var(--model-claude)'
-      };
-    }
-    return {
-      icon: <BrainIcon size={14} />,
-      label: model,
-      color: 'var(--text-secondary)'
-    };
-  };
-
-  const { icon, label, color } = getModelInfo(model);
-
-  return (
-    <span className="icon-pop-in" style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 'var(--space-1)',
-      padding: 'var(--space-1) var(--space-2)',
-      borderRadius: 'var(--radius-full)',
-      backgroundColor: `${color}15`,
-      color: color,
-      fontSize: 'var(--text-xs)',
-      fontWeight: 'var(--font-medium)',
-      border: `1px solid ${color}30`,
-    }}>
-      {icon}
-      {label}
-    </span>
-  );
 }
 
 // Componente de Botón Copiar
