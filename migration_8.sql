@@ -1,4 +1,4 @@
--- Migration 8: Sistema de Plantillas Predeterminadas de Notion
+-- Migration 8: Sistema de Plantillas Predeterminadas de Notion (CORREGIDO)
 -- Fecha: 2025-11-10
 -- Descripción: Implementa sistema de plantillas de Notion por perfil de usuario
 --             para facilitar la adopción y mejorar el onboarding
@@ -10,66 +10,16 @@
 -- Tabla que almacena las plantillas disponibles
 CREATE TABLE IF NOT EXISTS notion_template_catalog (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  template_pack_id TEXT UNIQUE NOT NULL, -- 'student', 'professional', 'entrepreneur', 'freelancer', 'basic'
+  template_pack_id TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   description TEXT,
   icon TEXT,
-  target_audience TEXT[], -- Array de audiencias objetivo
-
-  -- Estructura JSON completa de la plantilla
+  target_audience TEXT[],
   template_structure JSONB NOT NULL,
-  -- Formato esperado:
-  -- {
-  --   "databases": [
-  --     {
-  --       "name": "Task Manager",
-  --       "icon": "✅",
-  --       "description": "Gestiona tus tareas",
-  --       "properties": {
-  --         "Name": { "type": "title" },
-  --         "Status": { "type": "select", "options": [...] },
-  --         ...
-  --       },
-  --       "views": [
-  --         { "name": "All Tasks", "type": "table" },
-  --         { "name": "By Status", "type": "board", "group_by": "Status" }
-  --       ]
-  --     }
-  --   ],
-  --   "pages": [
-  --     {
-  --       "name": "Dashboard",
-  --       "icon": "📊",
-  --       "content": [...]
-  --     }
-  --   ]
-  -- }
-
-  -- Queries RAG predeterminadas por fuente
   default_rag_queries JSONB,
-  -- Formato:
-  -- {
-  --   "notion": ["¿Qué tareas tengo pendientes?", "Muéstrame mis proyectos"],
-  --   "gmail": ["Correos de profesores", "Notificaciones importantes"],
-  --   "calendar": ["Eventos de hoy"]
-  -- }
-
-  -- Preferencias de resumen sugeridas
   suggested_preferences JSONB,
-  -- Formato:
-  -- {
-  --   "summary_length": "balanced",
-  --   "summary_tone": "friendly",
-  --   "use_emojis": true,
-  --   "group_by_category": true
-  -- }
-
-  -- Orden de aparición en UI
   display_order INTEGER DEFAULT 0,
-
-  -- Estado de la plantilla
   is_active BOOLEAN DEFAULT true,
-
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -86,33 +36,17 @@ WHERE is_active = true;
 -- 2. TRACKING DE PLANTILLAS INSTALADAS
 -- =====================================================
 
--- Tabla que rastrea qué plantillas ha instalado cada usuario
 CREATE TABLE IF NOT EXISTS user_notion_templates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   template_pack_id TEXT NOT NULL REFERENCES notion_template_catalog(template_pack_id),
-
-  -- IDs de los elementos creados en Notion
   installed_notion_ids JSONB,
-  -- Formato:
-  -- {
-  --   "parent_page_id": "xxxxx-xxxxx-xxxxx",
-  --   "db_task_manager": "yyyyy-yyyyy-yyyyy",
-  --   "db_notes": "zzzzz-zzzzz-zzzzz",
-  --   "page_dashboard": "wwwww-wwwww-wwwww"
-  -- }
-
-  -- Estado de la instalación
-  installation_status TEXT DEFAULT 'pending', -- 'pending', 'installing', 'completed', 'failed'
-  installation_progress INTEGER DEFAULT 0, -- 0-100
+  installation_status TEXT DEFAULT 'pending',
+  installation_progress INTEGER DEFAULT 0,
   installation_error TEXT,
-
-  -- Timestamps
   installation_started_at TIMESTAMP WITH TIME ZONE,
   installation_completed_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-
-  -- Constraint: Un usuario solo puede instalar cada plantilla una vez
   UNIQUE(user_id, template_pack_id)
 );
 
@@ -127,88 +61,83 @@ CREATE INDEX IF NOT EXISTS idx_user_templates_user_status
 ON user_notion_templates(user_id, installation_status);
 
 -- =====================================================
--- 3. EXTENDER USER_PREFERENCES
+-- 3. EXTENDER USER_PREFERENCES (UNA COLUMNA A LA VEZ)
 -- =====================================================
 
--- Añadir columnas relacionadas con plantillas y personalización
-ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS
-  -- Plantilla seleccionada
-  selected_template_pack TEXT REFERENCES notion_template_catalog(template_pack_id),
-  template_installed BOOLEAN DEFAULT false,
+-- Plantilla seleccionada
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS selected_template_pack TEXT;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS template_installed BOOLEAN DEFAULT false;
 
-  -- Perfil del usuario
-  user_role TEXT DEFAULT 'professional', -- 'student', 'professional', 'entrepreneur', 'freelancer', 'other'
-  user_interests TEXT[], -- Array de intereses: ['tecnología', 'negocios', 'salud']
+-- Perfil del usuario
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS user_role TEXT DEFAULT 'professional';
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS user_interests TEXT[];
 
-  -- Proyectos activos (simplificado)
-  active_projects JSONB DEFAULT '[]',
-  -- Formato: [{"name": "Proyecto X", "description": "...", "keywords": ["react", "nextjs"]}]
+-- Proyectos activos
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS active_projects JSONB DEFAULT '[]';
 
-  -- Contenido del resumen
-  include_calendar BOOLEAN DEFAULT true,
-  include_notion BOOLEAN DEFAULT true,
-  include_gmail BOOLEAN DEFAULT true,
-  include_yesterday_summary BOOLEAN DEFAULT false,
+-- Contenido del resumen
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_calendar BOOLEAN DEFAULT true;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_notion BOOLEAN DEFAULT true;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_gmail BOOLEAN DEFAULT true;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_yesterday_summary BOOLEAN DEFAULT false;
 
-  -- Gmail personalización
-  gmail_priority_senders TEXT[], -- emails de personas importantes
-  gmail_keywords TEXT[], -- palabras clave para priorizar
-  gmail_only_unread BOOLEAN DEFAULT true,
-  gmail_timeframe_hours INTEGER DEFAULT 24,
+-- Gmail personalización
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS gmail_priority_senders TEXT[];
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS gmail_keywords TEXT[];
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS gmail_only_unread BOOLEAN DEFAULT true;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS gmail_timeframe_hours INTEGER DEFAULT 24;
 
-  -- Notion personalización
-  notion_database_ids TEXT[], -- IDs de databases a revisar
-  notion_task_statuses TEXT[] DEFAULT ARRAY['Not Started', 'In Progress', 'To Do'],
+-- Notion personalización
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS notion_database_ids TEXT[];
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS notion_task_statuses TEXT[] DEFAULT ARRAY['Not Started', 'In Progress', 'To Do'];
 
-  -- Formato del resumen
-  summary_length TEXT DEFAULT 'balanced', -- 'brief' | 'balanced' | 'detailed'
-  summary_tone TEXT DEFAULT 'friendly', -- 'professional' | 'friendly' | 'motivational'
-  use_emojis BOOLEAN DEFAULT true,
-  group_by_category BOOLEAN DEFAULT true,
-  include_action_items BOOLEAN DEFAULT true,
+-- Formato del resumen
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS summary_length TEXT DEFAULT 'balanced';
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS summary_tone TEXT DEFAULT 'friendly';
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS use_emojis BOOLEAN DEFAULT true;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS group_by_category BOOLEAN DEFAULT true;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS include_action_items BOOLEAN DEFAULT true;
 
-  -- Frecuencia del resumen
-  frequency TEXT DEFAULT 'daily', -- 'daily' | 'weekdays' | 'custom'
-  custom_days INTEGER[], -- [1,2,3,4,5] para Lun-Vie (1=Lunes, 7=Domingo)
+-- Frecuencia del resumen
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS frequency TEXT DEFAULT 'daily';
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS custom_days INTEGER[];
 
-  -- Onboarding
-  onboarding_completed BOOLEAN DEFAULT false,
-  onboarding_completed_at TIMESTAMP WITH TIME ZONE,
-  onboarding_step INTEGER DEFAULT 0; -- Para retomar onboarding si se interrumpe
+-- Onboarding
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT false;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS onboarding_completed_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS onboarding_step INTEGER DEFAULT 0;
+
+-- Añadir foreign key constraint después de crear la columna
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'user_preferences_selected_template_pack_fkey'
+  ) THEN
+    ALTER TABLE user_preferences
+    ADD CONSTRAINT user_preferences_selected_template_pack_fkey
+    FOREIGN KEY (selected_template_pack)
+    REFERENCES notion_template_catalog(template_pack_id);
+  END IF;
+END $$;
 
 -- =====================================================
 -- 4. TABLA DE CONTEXTO PERSONAL DEL USUARIO
 -- =====================================================
 
--- Tabla para almacenar objetivos, proyectos, hábitos del usuario
--- Mejora el resumen diario al entender qué es importante para el usuario
 CREATE TABLE IF NOT EXISTS user_context (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-
-  -- Tipo de contexto
-  context_type TEXT NOT NULL, -- 'goal', 'project', 'habit', 'focus_area', 'person'
-
-  -- Información
+  context_type TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
-  keywords TEXT[], -- Para mejorar búsquedas RAG
-
-  -- Importancia
-  priority INTEGER DEFAULT 0, -- 0=normal, 1=high, 2=critical
-
-  -- Estado
-  status TEXT DEFAULT 'active', -- 'active', 'paused', 'completed', 'archived'
-
-  -- Metadata
-  metadata JSONB, -- Información adicional específica por tipo
-
-  -- Timestamps
+  keywords TEXT[],
+  priority INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'active',
+  metadata JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   completed_at TIMESTAMP WITH TIME ZONE,
-
-  -- Constraint
   UNIQUE(user_id, title)
 );
 
@@ -231,23 +160,15 @@ WHERE status = 'active';
 -- 5. TABLA DE FEEDBACK DE RESÚMENES
 -- =====================================================
 
--- Para mejorar los resúmenes con el tiempo basado en feedback del usuario
 CREATE TABLE IF NOT EXISTS summary_feedback (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   summary_id UUID NOT NULL REFERENCES daily_summaries(id) ON DELETE CASCADE,
-
-  -- Rating
   rating INTEGER CHECK (rating >= 1 AND rating <= 5),
   was_helpful BOOLEAN,
-
-  -- Feedback específico
   feedback_text TEXT,
-  feedback_tags TEXT[], -- ['demasiado_largo', 'falta_info', 'perfecto']
-
+  feedback_tags TEXT[],
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-
-  -- Un usuario solo puede dar feedback una vez por resumen
   UNIQUE(user_id, summary_id)
 );
 
@@ -268,6 +189,7 @@ ON summary_feedback(rating);
 -- notion_template_catalog: Público para lectura
 ALTER TABLE notion_template_catalog ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can view active templates" ON notion_template_catalog;
 CREATE POLICY "Anyone can view active templates"
 ON notion_template_catalog
 FOR SELECT
@@ -276,16 +198,19 @@ USING (is_active = true);
 -- user_notion_templates: Solo el propietario
 ALTER TABLE user_notion_templates ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own template installations" ON user_notion_templates;
 CREATE POLICY "Users can view own template installations"
 ON user_notion_templates
 FOR SELECT
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own template installations" ON user_notion_templates;
 CREATE POLICY "Users can insert own template installations"
 ON user_notion_templates
 FOR INSERT
 WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own template installations" ON user_notion_templates;
 CREATE POLICY "Users can update own template installations"
 ON user_notion_templates
 FOR UPDATE
@@ -294,21 +219,25 @@ USING (auth.uid() = user_id);
 -- user_context: Solo el propietario
 ALTER TABLE user_context ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own context" ON user_context;
 CREATE POLICY "Users can view own context"
 ON user_context
 FOR SELECT
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own context" ON user_context;
 CREATE POLICY "Users can insert own context"
 ON user_context
 FOR INSERT
 WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own context" ON user_context;
 CREATE POLICY "Users can update own context"
 ON user_context
 FOR UPDATE
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own context" ON user_context;
 CREATE POLICY "Users can delete own context"
 ON user_context
 FOR DELETE
@@ -317,16 +246,19 @@ USING (auth.uid() = user_id);
 -- summary_feedback: Solo el propietario
 ALTER TABLE summary_feedback ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own feedback" ON summary_feedback;
 CREATE POLICY "Users can view own feedback"
 ON summary_feedback
 FOR SELECT
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own feedback" ON summary_feedback;
 CREATE POLICY "Users can insert own feedback"
 ON summary_feedback
 FOR INSERT
 WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own feedback" ON summary_feedback;
 CREATE POLICY "Users can update own feedback"
 ON summary_feedback
 FOR UPDATE
