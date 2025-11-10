@@ -20,7 +20,7 @@ export const AnimatedMessage: React.FC<AnimatedMessageProps> = ({
   sender,
   autoplay = true,
 }) => {
-  const messageRef = useRef<HTMLElement>(null);
+  const messageRef = useRef<HTMLDivElement>(null);
 
   // Aplicar secuencia de entrada
   useSequence('messageEntry', messageRef, {
