@@ -4,10 +4,10 @@
  * Este servicio maneja la clonación automática de plantillas predeterminadas
  * de Notion según el perfil del usuario durante el onboarding.
  *
- * Utiliza las herramientas MCP de Notion para crear databases, páginas y vistas.
+ * Utiliza la API directa de Notion (@notionhq/client) para crear databases, páginas y vistas.
  */
 
-import { executeMCPNotionTool } from '@/lib/orchestration/mcpNotionClient';
+import { Client as NotionClient } from '@notionhq/client';
 import { createClient } from '@supabase/supabase-js';
 
 // =====================================================
@@ -68,21 +68,12 @@ function slugify(text: string): string {
 }
 
 /**
- * Extrae el ID de página de la respuesta MCP
+ * Extrae el ID de página de la respuesta de Notion API
  */
 function extractPageId(result: any): string {
   try {
-    // La respuesta MCP puede venir en diferentes formatos
-    if (result.content && Array.isArray(result.content)) {
-      // Formato: { content: [{ type: 'text', text: 'page_id' }] }
-      const textContent = result.content.find((c: any) => c.type === 'text');
-      if (textContent && textContent.text) {
-        return textContent.text;
-      }
-    }
-
-    // Formato directo: { id: 'page_id' }
-    if (result.id) {
+    // La respuesta de la API de Notion devuelve directamente el objeto con id
+    if (result && result.id) {
       return result.id;
     }
 
@@ -100,7 +91,7 @@ function extractPageId(result: any): string {
 }
 
 /**
- * Extrae el ID de database de la respuesta MCP
+ * Extrae el ID de database de la respuesta de Notion API
  */
 function extractDatabaseId(result: any): string {
   return extractPageId(result); // Mismo formato que las páginas
@@ -195,24 +186,43 @@ export async function installNotionTemplate(
     console.log(`[TEMPLATE] Paso 3/6: Creando workspace principal en Notion...`);
     await updateInstallationProgress(userId, templatePackId, 10);
 
-    const parentPageResult = await executeMCPNotionTool(
-      userId,
-      notionAccessToken,
-      'create_page',
-      {
-        title: template.name,
-        // Note: MCP puede no soportar todos los parámetros, adaptamos según docs
-        properties: {
-          title: {
-            title: [{ text: { content: template.name } }]
-          }
+    // Inicializar cliente de Notion con el token del usuario
+    const notion = new NotionClient({ auth: notionAccessToken });
+
+    // Buscar una página raíz en el workspace del usuario donde colocar la plantilla
+    // Si no hay, Notion creará la página en el workspace principal
+    console.log('[TEMPLATE] Buscando páginas disponibles en el workspace...');
+    const searchResult = await notion.search({
+      filter: { property: 'object', value: 'page' },
+      page_size: 1
+    });
+
+    let parentConfig: any;
+    if (searchResult.results.length > 0) {
+      // Usar la primera página encontrada como parent
+      const firstPage: any = searchResult.results[0];
+      parentConfig = {
+        type: 'page_id',
+        page_id: firstPage.id
+      };
+      console.log(`[TEMPLATE] Usando página existente como parent: ${firstPage.id}`);
+    } else {
+      // Si no hay páginas, usar el workspace directamente
+      // En este caso, necesitamos crear la página sin parent específico
+      console.log('[TEMPLATE] No hay páginas disponibles, creando en workspace raíz');
+      // La API de Notion requiere un parent, así que crearemos una página temporal primero
+      // o usaremos el integration token's workspace
+      throw new Error('No se encontraron páginas en el workspace. Por favor, crea al menos una página en Notion primero.');
+    }
+
+    const parentPageResult = await notion.pages.create({
+      parent: parentConfig,
+      properties: {
+        title: {
+          title: [{ text: { content: template.name } }]
         }
       }
-    );
-
-    if (parentPageResult.error) {
-      throw new Error(`Error creando página padre: ${parentPageResult.message}`);
-    }
+    });
 
     const parentPageId = extractPageId(parentPageResult);
     installedIds['parent_page_id'] = parentPageId;
@@ -240,33 +250,21 @@ export async function installNotionTemplate(
           notionProperties[propName] = propConfig;
         }
 
-        // Crear la database usando MCP
-        const dbResult = await executeMCPNotionTool(
-          userId,
-          notionAccessToken,
-          'create_database',
-          {
-            parent: {
-              type: 'page_id',
-              page_id: parentPageId
-            },
-            title: [
-              {
-                type: 'text',
-                text: { content: db.name }
-              }
-            ],
-            properties: notionProperties,
-            // icon puede no ser soportado por MCP, pero intentamos
-            ...(db.icon ? { icon: { type: 'emoji', emoji: db.icon } } : {})
-          }
-        );
-
-        if (dbResult.error) {
-          console.warn(`[TEMPLATE] ⚠ Error creando database ${db.name}:`, dbResult.message);
-          // Continuar con las demás databases
-          continue;
-        }
+        // Crear la database usando la API directa de Notion
+        const dbResult = await notion.databases.create({
+          parent: {
+            type: 'page_id',
+            page_id: parentPageId
+          },
+          title: [
+            {
+              type: 'text',
+              text: { content: db.name }
+            }
+          ],
+          properties: notionProperties,
+          ...(db.icon ? { icon: { type: 'emoji', emoji: db.icon } } : {})
+        });
 
         const dbId = extractDatabaseId(dbResult);
         const dbKey = `db_${slugify(db.name)}`;
@@ -301,29 +299,19 @@ export async function installNotionTemplate(
       console.log(`[TEMPLATE] Creando página ${i + 1}/${totalPages}: ${page.name}...`);
 
       try {
-        const pageResult = await executeMCPNotionTool(
-          userId,
-          notionAccessToken,
-          'create_page',
-          {
-            parent: {
-              type: 'page_id',
-              page_id: parentPageId
-            },
-            properties: {
-              title: {
-                title: [{ text: { content: page.name } }]
-              }
-            },
-            ...(page.icon ? { icon: { type: 'emoji', emoji: page.icon } } : {}),
-            children: page.content || []
-          }
-        );
-
-        if (pageResult.error) {
-          console.warn(`[TEMPLATE] ⚠ Error creando página ${page.name}:`, pageResult.message);
-          continue;
-        }
+        const pageResult = await notion.pages.create({
+          parent: {
+            type: 'page_id',
+            page_id: parentPageId
+          },
+          properties: {
+            title: {
+              title: [{ text: { content: page.name } }]
+            }
+          },
+          ...(page.icon ? { icon: { type: 'emoji', emoji: page.icon } } : {}),
+          children: page.content || []
+        });
 
         const pageId = extractPageId(pageResult);
         const pageKey = `page_${slugify(page.name)}`;
