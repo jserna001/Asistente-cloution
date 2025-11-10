@@ -141,4 +141,4 @@ export {
 
 // === RE-EXPORTS from components ===
 // Estos se exportan desde components/Icons.tsx, pero los re-exportamos aquí por conveniencia
-export type { AnimationPreset, TriggerType } from '../components/IconAnimations/gsapPresets';
+export type { AnimationPreset, TriggerType } from '../../components/IconAnimations/gsapPresets';
