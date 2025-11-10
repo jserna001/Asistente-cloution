@@ -122,6 +122,24 @@ export {
   type SequenceConfig,
 } from './orchestration/sequencePresets';
 
+export {
+  fadeTransition,
+  slideTransition,
+  slideUpTransition,
+  slideDownTransition,
+  scaleTransition,
+  noneTransition,
+  animatePageEnter,
+  animatePageExit,
+  transitionBetweenPages,
+  getTransition,
+  getRouteTransition,
+  TRANSITION_PRESETS,
+  ROUTE_TRANSITIONS,
+  type TransitionType,
+  type TransitionConfig,
+} from './orchestration/pageTransitions';
+
 // === RE-EXPORTS from components ===
 // Estos se exportan desde components/Icons.tsx, pero los re-exportamos aquí por conveniencia
 export type { AnimationPreset, TriggerType } from '../components/IconAnimations/gsapPresets';
