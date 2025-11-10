@@ -92,7 +92,6 @@ export const loadAllGSAPPlugins = async () => {
 export const LazyConfetti = lazy(() => import('@/components/microinteractions/ConfettiCelebration'));
 export const LazyRippleEffect = lazy(() => import('@/components/microinteractions/RippleEffect'));
 export const LazySkeletonLoader = lazy(() => import('@/components/microinteractions/SkeletonLoader'));
-export const LazyDragFeedback = lazy(() => import('@/components/microinteractions/DragFeedback'));
 
 /**
  * Preload de componentes críticos
