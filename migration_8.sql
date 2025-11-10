@@ -320,8 +320,9 @@ COMMENT ON COLUMN user_preferences.frequency IS 'Frecuencia del resumen: daily, 
 -- =====================================================
 
 -- Primero eliminar cualquier objeto existente con ese nombre
-DROP VIEW IF EXISTS user_onboarding_status CASCADE;
+-- IMPORTANTE: Primero DROP TABLE, luego DROP VIEW (orden correcto)
 DROP TABLE IF EXISTS user_onboarding_status CASCADE;
+DROP VIEW IF EXISTS user_onboarding_status CASCADE;
 
 -- Vista para ver el estado de onboarding de usuarios
 CREATE VIEW user_onboarding_status AS
