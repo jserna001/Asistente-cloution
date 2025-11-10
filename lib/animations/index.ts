@@ -72,6 +72,14 @@ export {
   type AnimationConfig,
 } from './hooks/useReducedMotion';
 
+export {
+  useSequence,
+  useSequenceOnce,
+  useStaggerSequence,
+  type UseSequenceOptions,
+  type UseSequenceReturn,
+} from './hooks/useSequence';
+
 // === ORCHESTRATION ===
 export {
   getModelAnimation,
@@ -96,6 +104,23 @@ export {
   type StateAnimationConfig,
   type InteractionAnimationConfig,
 } from './orchestration/contextualAnimations';
+
+export {
+  typingIndicator,
+  messageEntry,
+  messageExit,
+  taskComplete,
+  errorShake,
+  staggerFadeIn,
+  staggerSlideIn,
+  logoReveal,
+  cardFlip,
+  confettiBurst,
+  getSequence,
+  SEQUENCE_PRESETS,
+  type SequencePresetName,
+  type SequenceConfig,
+} from './orchestration/sequencePresets';
 
 // === RE-EXPORTS from components ===
 // Estos se exportan desde components/Icons.tsx, pero los re-exportamos aquí por conveniencia
