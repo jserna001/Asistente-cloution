@@ -13,7 +13,6 @@ export {
   LazyConfetti,
   LazyRippleEffect,
   LazySkeletonLoader,
-  LazyDragFeedback,
   preloadComponent,
   cleanupAnimations,
   optimizeGSAP,
