@@ -16,6 +16,7 @@ import {
   CalendarIcon,
   SendIcon,
   SpinnerIcon,
+  AnimatedIcon,
 } from '../components/Icons';
 
 gsap.registerPlugin(useGSAP);
@@ -604,12 +605,14 @@ function ChatUI() {
             border: '1px solid var(--border-primary)',
             maxWidth: '80%',
           }}>
-            <div className="loading-dot" style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--accent-blue)',
-            }} />
+            <AnimatedIcon animation="pulse" trigger="loop">
+              <div className="loading-dot" style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--accent-blue)',
+              }} />
+            </AnimatedIcon>
             <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Pensando...</p>
           </div>
         )}

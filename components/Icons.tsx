@@ -236,4 +236,9 @@ export const Icons = {
   Notion: NotionIcon,
 };
 
+// ============ Exportar AnimatedIcon ============
+
+export { AnimatedIcon } from './AnimatedIcon';
+export type { AnimationPreset, TriggerType } from './IconAnimations/gsapPresets';
+
 export default Icons;

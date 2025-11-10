@@ -8,7 +8,7 @@ import { useGSAP } from '@gsap/react';
 
 import Loader from '../../components/Loader';
 import { createSupabaseBrowserClient } from '../../lib/supabaseClient';
-import { GoogleIcon, BotIcon, SparklesIcon } from '../../components/Icons';
+import { GoogleIcon, BotIcon, SparklesIcon, AnimatedIcon } from '../../components/Icons';
 import styles from '../LoginPage.module.css';
 
 // --- UI Component for the detailed Login Screen ---
@@ -107,9 +107,9 @@ function LoginUI({ isTransitioning }: { isTransitioning: boolean }) {
                         <h1 style={{ fontSize: 'var(--text-4xl)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-3)', background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Asistente Cloution</h1>
                         <p style={{ fontSize: 'var(--text-base)', color: 'var(--text-secondary)', marginBottom: 'var(--space-2)' }}>Tu asistente personal impulsado por IA</p>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)', fontSize: 'var(--text-sm)', color: 'var(--text-tertiary)' }}>
-                            <span className="icon-breathe" style={{ display: 'flex' }}>
+                            <AnimatedIcon animation="glow" trigger="loop">
                                 <SparklesIcon size={14} />
-                            </span>
+                            </AnimatedIcon>
                             <span>Multi-modelo • RAG • Notion • Gmail</span>
                         </div>
                     </div>
