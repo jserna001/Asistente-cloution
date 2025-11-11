@@ -7,10 +7,10 @@ import { createClient } from '@supabase/supabase-js';
  */
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const summaryId = params.id;
+    const { id: summaryId } = await params;
 
     // 1. Verificar autenticación
     const authHeader = request.headers.get('authorization');
@@ -145,10 +145,10 @@ export async function POST(
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const summaryId = params.id;
+    const { id: summaryId } = await params;
 
     // 1. Verificar autenticación
     const authHeader = request.headers.get('authorization');
