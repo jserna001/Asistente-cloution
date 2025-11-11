@@ -449,7 +449,7 @@ export async function GET(request: Request) {
         todayEnd.setHours(23, 59, 59, 999);
 
         const calendarResponse = await withRetry(
-          () => calendar.events.list({
+          async () => await calendar.events.list({
             calendarId: 'primary',
             timeMin: todayStart.toISOString(),
             timeMax: todayEnd.toISOString(),
@@ -485,7 +485,7 @@ export async function GET(request: Request) {
             const embedding = await getCachedEmbedding(embeddingModel, query);
 
             const result = await withRetry(
-              () => supabase.rpc('match_document_chunks', {
+              async () => await supabase.rpc('match_document_chunks', {
                 query_embedding: embedding,
                 match_threshold: 0.75, // Aumentado de 0.6 para mayor relevancia
                 match_count: 2, // Reducido de 3 para optimizar context
@@ -551,7 +551,7 @@ export async function GET(request: Request) {
         const gmailQueryEmbedding = await getCachedEmbedding(embeddingModel, gmailQuery);
 
         const gmailResult = await withRetry(
-          () => supabase.rpc('match_document_chunks', {
+          async () => await supabase.rpc('match_document_chunks', {
             query_embedding: gmailQueryEmbedding,
             match_threshold: 0.75, // Aumentado de 0.7 para mayor relevancia
             match_count: 2, // Reducido de 3 para optimizar context
