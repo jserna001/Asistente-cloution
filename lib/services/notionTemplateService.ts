@@ -269,7 +269,7 @@ export async function installNotionTemplate(
           ],
           properties: notionProperties,
           ...(db.icon ? { icon: { type: 'emoji', emoji: db.icon } } : {})
-        });
+        } as any);
 
         const dbId = extractDatabaseId(dbResult);
         const dbKey = `db_${slugify(db.name)}`;
