@@ -222,39 +222,12 @@ export async function installNotionTemplate(
 
       parentPageId = extractPageId(parentPageResult);
     } else {
-      // Si no hay páginas, buscar bases de datos
-      console.log('[TEMPLATE] No se encontraron páginas, buscando bases de datos...');
-      const dbSearchResult = await notion.search({
-        filter: { property: 'object', value: 'database' },
-        page_size: 1
-      });
-
-      if (dbSearchResult.results.length > 0) {
-        // Crear como página hija de una database
-        const database: any = dbSearchResult.results[0];
-        console.log(`[TEMPLATE] Creando plantilla en database: ${database.id}`);
-
-        const parentPageResult = await notion.pages.create({
-          parent: {
-            type: 'database_id',
-            database_id: database.id
-          },
-          properties: {
-            title: {
-              title: [{ text: { content: `📦 ${template.name}` } }]
-            }
-          },
-          icon: { type: 'emoji', emoji: template.icon || '📁' }
-        });
-
-        parentPageId = extractPageId(parentPageResult);
-      } else {
-        // Último recurso: el usuario debe crear al menos una página manualmente
-        throw new Error(
-          'No se encontraron páginas ni bases de datos en tu workspace de Notion. ' +
-          'Por favor, abre Notion, crea una página nueva y vuelve a intentar la instalación.'
-        );
-      }
+      // Si no hay páginas, el usuario debe crear al menos una
+      console.error('[TEMPLATE] No se encontraron páginas en el workspace');
+      throw new Error(
+        'No se encontraron páginas en tu workspace de Notion. ' +
+        'Por favor, abre Notion, crea una página nueva (puede estar vacía) y vuelve a intentar la instalación.'
+      );
     }
 
     installedIds['parent_page_id'] = parentPageId;
