@@ -32,7 +32,9 @@ async function getCachedEmbedding(
   // Limitar cache a 100 entradas para evitar memory leak
   if (embeddingCache.size >= 100) {
     const firstKey = embeddingCache.keys().next().value;
-    embeddingCache.delete(firstKey);
+    if (firstKey !== undefined) {
+      embeddingCache.delete(firstKey);
+    }
   }
 
   embeddingCache.set(cacheKey, embedding);
