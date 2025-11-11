@@ -236,6 +236,113 @@ function ChatUI() {
     }
   }
 
+  // Mostrar mensaje de bienvenida personalizado después del onboarding
+  function showWelcomeMessage() {
+    const templateId = localStorage.getItem('onboarding_completed_template');
+    const templateName = localStorage.getItem('onboarding_template_name');
+    const notionUrl = localStorage.getItem('notion_workspace_url');
+
+    if (!templateId) return;
+
+    // Limpiar localStorage
+    localStorage.removeItem('onboarding_completed_template');
+    localStorage.removeItem('onboarding_template_name');
+    localStorage.removeItem('notion_workspace_url');
+
+    // Mensajes personalizados por plantilla
+    const welcomeMessages: Record<string, string> = {
+      professional: `🎉 ¡Perfecto! Tu workspace "${templateName}" está listo.
+
+He preparado para ti:
+• 📋 Task & Projects Manager - Tus proyectos organizados
+• 📝 Meeting Notes - Captura tus reuniones
+• 📊 Dashboard Semanal - Tu resumen visual
+
+No te preocupes por aprender Notion, yo me encargo de todo. Háblame como lo harías con un asistente personal 😊
+
+💬 Algunos ejemplos para empezar:
+• "Crea una tarea: Revisar propuesta del cliente"
+• "¿Qué tengo en mi calendario hoy?"
+• "Resumen de mis correos de esta semana"
+${notionUrl ? `• "Abre mi workspace de Notion"` : ''}
+
+¿Por dónde empezamos?`,
+
+      student: `🎉 ¡Perfecto! Tu workspace "${templateName}" está listo.
+
+He preparado para ti:
+• ✅ Task Manager - Tus tareas y entregas
+• 📝 Class Notes - Apuntes organizados
+• 📖 Study Resources - Recursos de estudio
+• 📅 Weekly Schedule - Tu horario semanal
+
+Solo háblame naturalmente y yo organizo todo en Notion 😊
+
+💬 Algunos ejemplos:
+• "Crea una tarea: Estudiar capítulo 3 de matemáticas"
+• "¿Qué entregas tengo esta semana?"
+• "Agregar apunte sobre [tema]"
+
+¿Qué necesitas hacer primero?`,
+
+      entrepreneur: `🎉 ¡Perfecto! Tu workspace "${templateName}" está listo.
+
+He preparado para ti:
+• 🎯 OKRs & Goals - Tus objetivos clave
+• 👥 CRM - Gestión de leads y clientes
+• 💰 Dashboard Financiero - Control de finanzas
+
+Háblame naturalmente y yo actualizo todo en Notion 😊
+
+💬 Algunos ejemplos:
+• "Agregar objetivo: Alcanzar 50K MRR en Q1"
+• "Nuevo lead: [nombre empresa]"
+• "¿Qué clientes necesitan seguimiento?"
+
+¿Por dónde empezamos?`,
+
+      freelancer: `🎉 ¡Perfecto! Tu workspace "${templateName}" está listo.
+
+He preparado para ti:
+• 💼 Projects - Gestión de proyectos
+• 👥 Clients - Base de clientes
+• ⏰ Time Tracking - Control de horas
+• 💵 Invoices - Facturación
+
+Solo háblame y yo organizo todo 😊
+
+💬 Algunos ejemplos:
+• "Nuevo proyecto: Diseño web para [cliente]"
+• "Registrar 3 horas en proyecto X"
+• "¿Qué facturas están pendientes?"
+
+¿Qué hacemos primero?`,
+
+      basic: `🎉 ¡Perfecto! Tu workspace "${templateName}" está listo.
+
+He preparado para ti:
+• ✅ My Tasks - Lista de tareas simple
+• 📝 Quick Notes - Notas rápidas
+
+Háblame naturalmente y yo me encargo de Notion 😊
+
+💬 Algunos ejemplos:
+• "Crea una tarea: Comprar leche"
+• "Agregar nota sobre [tema]"
+• "¿Qué tengo pendiente?"
+
+¿Qué necesitas hacer?`
+    };
+
+    const welcomeMessage = welcomeMessages[templateId] || `🎉 ¡Tu workspace está listo! ¿Qué necesitas hacer hoy?`;
+
+    // Agregar mensaje del asistente
+    setMessages([{
+      role: 'assistant',
+      content: welcomeMessage
+    }]);
+  }
+
   useEffect(() => {
     const status = searchParams.get('status');
     if (status === 'notion_connected') {
@@ -618,7 +725,12 @@ function ChatUI() {
         <OnboardingWizard
           onComplete={() => {
             setShowOnboarding(false);
-            loadDailySummary(); // Recargar resumen después de completar onboarding
+            loadDailySummary();
+
+            // Mostrar mensaje de bienvenida después de completar onboarding
+            setTimeout(() => {
+              showWelcomeMessage();
+            }, 500);
           }}
           onSkip={() => {
             setShowOnboarding(false);
