@@ -165,12 +165,51 @@ ORDER BY display_order;
 
 ## 📊 Métricas de Impacto
 
-- **Tiempo de setup**: De ~30 minutos a ~30 segundos (60x mejora)
+- **Tiempo de setup**: De ~30 minutos a ~20 segundos (90x mejora)
 - **Adopción esperada**: +80% (vs ~20% actual con setup manual)
-- **Líneas de código**: +4,375 líneas
+- **Líneas de código**: +4,500 líneas (incluye polling asíncrono)
 - **Archivos**: 11 archivos nuevos/modificados
-- **Commits**: 12 commits (incluye 6 fixes + flujo conversacional)
+- **Commits**: 14 commits (incluye 9 fixes + flujo conversacional + polling async)
 - **Fricción eliminada**: Usuarios empiezan a usar el asistente inmediatamente con 1 click
+- **Compatibilidad**: Vercel Hobby plan (gratis) - No requiere Pro
+
+---
+
+## ⚡ Sistema de Instalación Asíncrona con Polling
+
+### Problema Original: Error 1033 Cloudflare Timeout
+La instalación de plantillas tomaba ~60 segundos, causando **Error 1033 Cloudflare Tunnel timeout**. La solución tradicional (aumentar timeout) requería Vercel Pro ($20/mes).
+
+### Solución Implementada: Polling Asíncrono ✨
+**Compatible con Vercel Hobby (gratis)** - Sin necesidad de upgrade
+
+#### Arquitectura:
+1. **POST** `/api/onboarding/install-template` → Inicia job y retorna **inmediatamente** (<1s)
+2. **Job en Background** → Instalación continúa mientras actualiza progreso en BD
+3. **Frontend Polling** → GET cada 2 segundos para leer progreso desde BD
+4. **Progress Bar Real** → Actualizada desde `user_notion_templates.installation_progress`
+5. **Paralelización** → Databases y páginas se crean concurrentemente (Promise.all)
+
+#### Ventajas:
+- ✅ **Sin timeouts** de Cloudflare (request inicial <1 segundo)
+- ✅ **Vercel Hobby compatible** (no requiere Pro plan)
+- ✅ **Progreso real** en tiempo real (no simulado)
+- ✅ **3x más rápido** con paralelización (~20s en lugar de 60s)
+- ✅ **UX mejorada** con feedback preciso del backend
+
+#### Flujo Técnico:
+```
+Frontend POST → Backend crea registro (status: 'in_progress', progress: 0)
+              → Lanza installNotionTemplate() en background (fire-and-forget)
+              → Retorna jobId inmediatamente
+
+Frontend inicia polling cada 2s
+              ↓
+Frontend GET → Backend lee user_notion_templates
+             → Retorna { status, progress, installedIds, error }
+
+Loop hasta status = 'completed' o 'failed'
+```
 
 ---
 
@@ -184,6 +223,7 @@ ORDER BY display_order;
 6. **TypeScript Type Assertion** - Agregar `as any` en `databases.create()` para bypass de tipos estrictos
 7. **Vista Read-Only Error** - Cambiar `/app/onboarding/page.tsx` de vista `user_onboarding_status` a tabla `user_preferences`
 8. **UX Redirect Issue** - Eliminar redirect automático a Notion, mantener usuarios en chat con welcome message
+9. **Error 1033 Cloudflare Timeout** - Implementar instalación asíncrona con polling (compatible con Vercel Hobby)
 
 ---
 
