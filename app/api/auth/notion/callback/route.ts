@@ -46,9 +46,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/settings?status=error&error_message=Credenciales de Notion no configuradas en el servidor', req.url));
   }
 
-  const redirectUri = process.env.NODE_ENV === 'production'
-    ? 'https://asistente-justine.cloution.cloud/api/auth/notion/callback'
-    : 'http://localhost:3000/api/auth/notion/callback';
+  // Determinar la URI de redirección de forma dinámica basada en el host actual
+  const host = req.headers.get('host');
+  const protocol = req.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
+  const redirectUri = `${protocol}://${host}/api/auth/notion/callback`;
+
+  console.log('[NOTION-CALLBACK] Host:', host);
+  console.log('[NOTION-CALLBACK] Protocol:', protocol);
+  console.log('[NOTION-CALLBACK] Redirect URI:', redirectUri);
 
   const basicAuth = Buffer.from(`${NOTION_CLIENT_ID}:${NOTION_CLIENT_SECRET}`).toString('base64');
 
