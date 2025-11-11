@@ -31,11 +31,18 @@ interface MessageMetadata {
   executionTimeMs?: number;
 }
 
+interface QuickAction {
+  label: string;
+  icon: string;
+  action: string;
+}
+
 interface Message {
   sender: 'user' | 'ai';
   text: string;
   metadata?: MessageMetadata;
   timestamp: number;
+  quickActions?: QuickAction[];
 }
 
 // Componente de Botón Copiar
@@ -236,6 +243,147 @@ function ChatUI() {
     }
   }
 
+  // Mostrar mensaje de bienvenida personalizado después del onboarding
+  function showWelcomeMessage() {
+    const templateId = localStorage.getItem('onboarding_completed_template');
+    const templateName = localStorage.getItem('onboarding_template_name');
+    const notionUrl = localStorage.getItem('notion_workspace_url');
+
+    if (!templateId) return;
+
+    // Limpiar localStorage
+    localStorage.removeItem('onboarding_completed_template');
+    localStorage.removeItem('onboarding_template_name');
+    localStorage.removeItem('notion_workspace_url');
+
+    // Mensajes personalizados por plantilla
+    const welcomeMessages: Record<string, string> = {
+      professional: `🎉 ¡Perfecto! Tu workspace "${templateName}" está listo.
+
+He preparado para ti:
+• 📋 Task & Projects Manager - Tus proyectos organizados
+• 📝 Meeting Notes - Captura tus reuniones
+• 📊 Dashboard Semanal - Tu resumen visual
+
+No te preocupes por aprender Notion, yo me encargo de todo. Háblame como lo harías con un asistente personal 😊
+
+💬 Algunos ejemplos para empezar:
+• "Crea una tarea: Revisar propuesta del cliente"
+• "¿Qué tengo en mi calendario hoy?"
+• "Resumen de mis correos de esta semana"
+${notionUrl ? `• "Abre mi workspace de Notion"` : ''}
+
+¿Por dónde empezamos?`,
+
+      student: `🎉 ¡Perfecto! Tu workspace "${templateName}" está listo.
+
+He preparado para ti:
+• ✅ Task Manager - Tus tareas y entregas
+• 📝 Class Notes - Apuntes organizados
+• 📖 Study Resources - Recursos de estudio
+• 📅 Weekly Schedule - Tu horario semanal
+
+Solo háblame naturalmente y yo organizo todo en Notion 😊
+
+💬 Algunos ejemplos:
+• "Crea una tarea: Estudiar capítulo 3 de matemáticas"
+• "¿Qué entregas tengo esta semana?"
+• "Agregar apunte sobre [tema]"
+
+¿Qué necesitas hacer primero?`,
+
+      entrepreneur: `🎉 ¡Perfecto! Tu workspace "${templateName}" está listo.
+
+He preparado para ti:
+• 🎯 OKRs & Goals - Tus objetivos clave
+• 👥 CRM - Gestión de leads y clientes
+• 💰 Dashboard Financiero - Control de finanzas
+
+Háblame naturalmente y yo actualizo todo en Notion 😊
+
+💬 Algunos ejemplos:
+• "Agregar objetivo: Alcanzar 50K MRR en Q1"
+• "Nuevo lead: [nombre empresa]"
+• "¿Qué clientes necesitan seguimiento?"
+
+¿Por dónde empezamos?`,
+
+      freelancer: `🎉 ¡Perfecto! Tu workspace "${templateName}" está listo.
+
+He preparado para ti:
+• 💼 Projects - Gestión de proyectos
+• 👥 Clients - Base de clientes
+• ⏰ Time Tracking - Control de horas
+• 💵 Invoices - Facturación
+
+Solo háblame y yo organizo todo 😊
+
+💬 Algunos ejemplos:
+• "Nuevo proyecto: Diseño web para [cliente]"
+• "Registrar 3 horas en proyecto X"
+• "¿Qué facturas están pendientes?"
+
+¿Qué hacemos primero?`,
+
+      basic: `🎉 ¡Perfecto! Tu workspace "${templateName}" está listo.
+
+He preparado para ti:
+• ✅ My Tasks - Lista de tareas simple
+• 📝 Quick Notes - Notas rápidas
+
+Háblame naturalmente y yo me encargo de Notion 😊
+
+💬 Algunos ejemplos:
+• "Crea una tarea: Comprar leche"
+• "Agregar nota sobre [tema]"
+• "¿Qué tengo pendiente?"
+
+¿Qué necesitas hacer?`
+    };
+
+    const welcomeMessage = welcomeMessages[templateId] || `🎉 ¡Tu workspace está listo! ¿Qué necesitas hacer hoy?`;
+
+    // Quick actions personalizadas por plantilla
+    const quickActionsByTemplate: Record<string, QuickAction[]> = {
+      professional: [
+        { label: 'Crear primera tarea', icon: '➕', action: 'Crea una tarea: Revisar propuesta del cliente' },
+        { label: 'Ver mi día', icon: '📅', action: '¿Qué tengo en mi calendario hoy?' },
+        { label: 'Resumen de correos', icon: '📧', action: 'Dame un resumen de mis correos de esta semana' },
+        ...(notionUrl ? [{ label: 'Abrir Notion', icon: '🔗', action: notionUrl }] : [])
+      ],
+      student: [
+        { label: 'Crear tarea', icon: '✏️', action: 'Crea una tarea: Estudiar capítulo 3 de matemáticas' },
+        { label: 'Mis entregas', icon: '📚', action: '¿Qué entregas tengo esta semana?' },
+        { label: 'Ver calendario', icon: '📅', action: '¿Qué tengo en mi calendario hoy?' }
+      ],
+      entrepreneur: [
+        { label: 'Nuevo objetivo', icon: '🎯', action: 'Agregar objetivo: Alcanzar 50K MRR en Q1' },
+        { label: 'Clientes pendientes', icon: '👥', action: '¿Qué clientes necesitan seguimiento?' },
+        { label: 'Ver OKRs', icon: '📊', action: 'Muéstrame el progreso de mis OKRs' }
+      ],
+      freelancer: [
+        { label: 'Nuevo proyecto', icon: '💼', action: 'Nuevo proyecto: Diseño web para cliente X' },
+        { label: 'Registrar horas', icon: '⏰', action: 'Registrar 3 horas en proyecto actual' },
+        { label: 'Facturas pendientes', icon: '💵', action: '¿Qué facturas están pendientes?' }
+      ],
+      basic: [
+        { label: 'Crear tarea', icon: '✅', action: 'Crea una tarea: Comprar leche' },
+        { label: 'Nueva nota', icon: '📝', action: 'Agregar nota sobre ideas del día' },
+        { label: 'Ver pendientes', icon: '📋', action: '¿Qué tengo pendiente?' }
+      ]
+    };
+
+    const quickActions = quickActionsByTemplate[templateId] || [];
+
+    // Agregar mensaje del asistente con quick actions
+    setMessages([{
+      sender: 'ai',
+      text: welcomeMessage,
+      timestamp: Date.now(),
+      quickActions: quickActions.length > 0 ? quickActions : undefined
+    }]);
+  }
+
   useEffect(() => {
     const status = searchParams.get('status');
     if (status === 'notion_connected') {
@@ -287,6 +435,25 @@ function ChatUI() {
 
   // Animaciones de mensajes ahora se manejan en AnimatedMessage component
   // Animación del typing indicator ahora se maneja en el componente TypingIndicator
+
+  // Manejar click en quick actions
+  const handleQuickAction = (action: string) => {
+    // Si la acción es una URL (Notion), abrirla en nueva pestaña
+    if (action.startsWith('http')) {
+      window.open(action, '_blank');
+      return;
+    }
+
+    // Si no, simular que el usuario escribió el mensaje
+    setCurrentQuery(action);
+    // Usar setTimeout para dar tiempo a que React actualice el estado
+    setTimeout(() => {
+      const form = document.querySelector('form') as HTMLFormElement;
+      if (form) {
+        form.requestSubmit();
+      }
+    }, 0);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -532,6 +699,54 @@ function ChatUI() {
                 <CopyButton text={msg.text} />
               </div>
             )}
+
+            {/* Botones de acción rápida */}
+            {msg.sender === 'ai' && msg.quickActions && msg.quickActions.length > 0 && (
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 'var(--space-2)',
+                marginTop: 'var(--space-3)',
+              }}>
+                {msg.quickActions.map((quickAction, actionIndex) => (
+                  <button
+                    key={actionIndex}
+                    onClick={() => handleQuickAction(quickAction.action)}
+                    style={{
+                      padding: 'var(--space-2) var(--space-4)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-primary)',
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-2)',
+                      transition: 'all var(--transition-fast)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--accent-blue)';
+                      e.currentTarget.style.color = 'white';
+                      e.currentTarget.style.borderColor = 'var(--accent-blue)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(14, 165, 233, 0.2)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                      e.currentTarget.style.color = 'var(--text-primary)';
+                      e.currentTarget.style.borderColor = 'var(--border-primary)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <span>{quickAction.icon}</span>
+                    <span>{quickAction.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </AnimatedMessage>
         ))}
 
@@ -618,7 +833,12 @@ function ChatUI() {
         <OnboardingWizard
           onComplete={() => {
             setShowOnboarding(false);
-            loadDailySummary(); // Recargar resumen después de completar onboarding
+            loadDailySummary();
+
+            // Mostrar mensaje de bienvenida después de completar onboarding
+            setTimeout(() => {
+              showWelcomeMessage();
+            }, 500);
           }}
           onSkip={() => {
             setShowOnboarding(false);

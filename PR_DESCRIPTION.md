@@ -34,6 +34,13 @@ El sistema incluye **5 plantillas predeterminadas** que se instalan automáticam
 - Queries RAG personalizados para Notion, Gmail y Calendar
 - Preferencias sugeridas (tono, longitud, emojis, etc.)
 
+### 5. **Flujo Conversacional Post-Onboarding** ✨ NUEVO
+- Mensaje de bienvenida personalizado según plantilla elegida
+- Botones de acción rápida específicos por perfil de usuario
+- Integración directa al chat (sin redirects externos)
+- Onboarding conversacional "como hablar con un amigo"
+- Eliminación de fricción "no sé por dónde empezar"
+
 ---
 
 ## 📁 Archivos Creados/Modificados
@@ -49,10 +56,11 @@ El sistema incluye **5 plantillas predeterminadas** que se instalan automáticam
 - `components/onboarding/OnboardingWizard.css` - Estilos + animaciones GSAP
 - `ONBOARDING_SYSTEM_README.md` - Documentación completa
 
-### Archivos Modificados (1)
-- `app/page.tsx` - Integración del wizard + check de onboarding status
+### Archivos Modificados (2)
+- `app/page.tsx` - Integración del wizard + check de onboarding status + conversational flow
+- `components/onboarding/OnboardingWizard.tsx` - Eliminado redirect a Notion + localStorage
 
-**Total**: +4,264 líneas de código
+**Total**: +4,375 líneas de código (+111 del flujo conversacional)
 
 ---
 
@@ -159,9 +167,10 @@ ORDER BY display_order;
 
 - **Tiempo de setup**: De ~30 minutos a ~30 segundos (60x mejora)
 - **Adopción esperada**: +80% (vs ~20% actual con setup manual)
-- **Líneas de código**: +4,264 líneas
-- **Archivos**: 10 archivos nuevos/modificados
-- **Commits**: 10 commits (incluye 6 fixes incrementales)
+- **Líneas de código**: +4,375 líneas
+- **Archivos**: 11 archivos nuevos/modificados
+- **Commits**: 12 commits (incluye 6 fixes + flujo conversacional)
+- **Fricción eliminada**: Usuarios empiezan a usar el asistente inmediatamente con 1 click
 
 ---
 
@@ -173,6 +182,8 @@ ORDER BY display_order;
 4. **MCP → API Directa de Notion** - Reemplazar MCP con `@notionhq/client` para mayor estabilidad
 5. **TypeScript Build Errors** - Eliminar búsqueda de databases (tipo no soportado)
 6. **TypeScript Type Assertion** - Agregar `as any` en `databases.create()` para bypass de tipos estrictos
+7. **Vista Read-Only Error** - Cambiar `/app/onboarding/page.tsx` de vista `user_onboarding_status` a tabla `user_preferences`
+8. **UX Redirect Issue** - Eliminar redirect automático a Notion, mantener usuarios en chat con welcome message
 
 ---
 
@@ -205,6 +216,9 @@ Ver `ONBOARDING_SYSTEM_README.md` para:
 - Success animations
 - Error handling con mensajes claros
 - Dark mode support
+- **Botones de acción rápida** con hover effects y animaciones
+- **Mensajes de bienvenida personalizados** por plantilla
+- **Transición fluida** de wizard a chat sin redirects
 
 ---
 

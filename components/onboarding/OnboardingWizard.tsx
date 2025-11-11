@@ -226,13 +226,10 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
         // Avanzar al paso final
         setStep(4);
 
-        // Redirigir después de 3 segundos
-        setTimeout(() => {
-          if (result.notionWorkspaceUrl) {
-            window.open(result.notionWorkspaceUrl, '_blank');
-          }
-          onComplete();
-        }, 3000);
+        // Guardar información de la plantilla para el chat
+        localStorage.setItem('onboarding_completed_template', selectedTemplate.template_pack_id);
+        localStorage.setItem('onboarding_template_name', selectedTemplate.name);
+        localStorage.setItem('notion_workspace_url', result.notionWorkspaceUrl || '');
 
       } else {
         if (result.needsNotionAuth) {
@@ -476,17 +473,16 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
               </div>
 
               <div className="next-steps">
-                <p><strong>Próximos pasos:</strong></p>
-                <ol>
-                  <li>Abre tu workspace en Notion (se abrirá automáticamente)</li>
-                  <li>Empieza a agregar tus datos</li>
-                  <li>Regresa aquí y chatea con tu asistente</li>
-                </ol>
+                <p><strong>Próximo paso:</strong></p>
+                <p style={{ marginTop: '8px', opacity: 0.9 }}>
+                  Vamos al chat donde te guiaré para empezar a usar tu nuevo workspace.
+                  No necesitas aprender Notion, solo háblame naturalmente 😊
+                </p>
               </div>
 
               <div className="step-actions">
                 <button onClick={onComplete} className="primary-button large">
-                  🚀 Ir al Chat
+                  💬 Empecemos a conversar
                 </button>
               </div>
             </div>
