@@ -161,7 +161,7 @@ ORDER BY display_order;
 - **Adopción esperada**: +80% (vs ~20% actual con setup manual)
 - **Líneas de código**: +4,264 líneas
 - **Archivos**: 10 archivos nuevos/modificados
-- **Commits**: 5 commits con fixes incrementales
+- **Commits**: 10 commits (incluye 6 fixes incrementales)
 
 ---
 
@@ -170,6 +170,9 @@ ORDER BY display_order;
 1. **PostgreSQL Sintaxis** - Separar ADD COLUMN IF NOT EXISTS en statements individuales
 2. **DROP Order** - Cambiar orden DROP TABLE antes de DROP VIEW
 3. **Migration Idempotencia** - Condicionales para evitar errores en re-ejecución
+4. **MCP → API Directa de Notion** - Reemplazar MCP con `@notionhq/client` para mayor estabilidad
+5. **TypeScript Build Errors** - Eliminar búsqueda de databases (tipo no soportado)
+6. **TypeScript Type Assertion** - Agregar `as any` en `databases.create()` para bypass de tipos estrictos
 
 ---
 
