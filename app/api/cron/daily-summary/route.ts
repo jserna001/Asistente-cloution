@@ -602,7 +602,7 @@ export async function GET(request: Request) {
 
         console.log(`[CRON] [${userId}] Encontrados ${notionChunks.length} chunks relevantes en Notion (ordenados por prioridad)`);
 
-        // 5.4 Leer Correos de Gmail (RAG) - PERSONALIZADO
+        // 5.4 Leer Correos de Gmail (RAG) - FASE 7: Mejorado con metadata y links clickeables
         console.log(`[CRON] [${userId}] Buscando correos importantes...`);
 
         // Construir query dinámica basada en preferencias del usuario
@@ -624,13 +624,15 @@ export async function GET(request: Request) {
 
         const gmailQueryEmbedding = await getCachedEmbedding(embeddingModel, gmailQuery);
 
+        // FASE 7: Usar función con metadata para obtener más información
         const gmailResult = await withRetry(
-          async () => await supabase.rpc('match_document_chunks', {
+          async () => await supabase.rpc('match_document_chunks_with_metadata', {
             query_embedding: gmailQueryEmbedding,
-            match_threshold: 0.75, // Aumentado de 0.7 para mayor relevancia
-            match_count: 2, // Reducido de 3 para optimizar context
+            match_threshold: 0.75,
+            match_count: 5, // Aumentado porque vamos a agrupar por thread
             p_source_type: 'gmail',
-            p_user_id: userId
+            p_user_id: userId,
+            p_metadata_filter: {} // Sin filtro de metadata (aceptar todas las categorías)
           }),
           3,
           `Gmail RAG[${userId}]`
@@ -638,20 +640,58 @@ export async function GET(request: Request) {
 
         const gmailChunksRaw = gmailResult?.data || [];
 
+        // FASE 7: Agrupar por thread_id para evitar duplicados
+        const threadMap = new Map();
+        for (const chunk of gmailChunksRaw) {
+          const threadId = chunk.metadata?.thread_id || chunk.document_id;
+          if (!threadMap.has(threadId)) {
+            threadMap.set(threadId, []);
+          }
+          threadMap.get(threadId).push(chunk);
+        }
+
+        console.log(`[CRON] [${userId}] ${gmailChunksRaw.length} correos encontrados, ${threadMap.size} hilos únicos`);
+
+        // Tomar el mensaje más reciente de cada hilo y calcular priority score
+        const uniqueThreads = Array.from(threadMap.values()).map(thread => {
+          // Ordenar por fecha (más reciente primero)
+          const sorted = thread.sort((a: any, b: any) => {
+            const dateA = new Date(a.metadata?.date || 0).getTime();
+            const dateB = new Date(b.metadata?.date || 0).getTime();
+            return dateB - dateA;
+          });
+          return sorted[0]; // Mensaje más reciente del hilo
+        });
+
         // Priorizar correos por urgencia
-        const gmailChunks = gmailChunksRaw
+        const gmailChunks = uniqueThreads
           .map((chunk: any) => ({
             ...chunk,
-            priorityScore: calculatePriorityScore(chunk)
+            priorityScore: calculatePriorityScore(chunk),
+            threadSize: threadMap.get(chunk.metadata?.thread_id || chunk.document_id)?.length || 1
           }))
-          .sort((a: any, b: any) => b.priorityScore - a.priorityScore);
+          .sort((a: any, b: any) => b.priorityScore - a.priorityScore)
+          .slice(0, 2); // Top 2 hilos más importantes
 
-        // Truncar correos largos y agregar document_id para acciones
+        // FASE 7: Truncar correos y generar links clickeables a Gmail
         const gmailContext = gmailChunks?.map((c: any) => {
           const truncated = truncateChunkContent(c.content);
-          // Agregar document_id (thread_id o message_id) para crear mailto links
-          const docRef = c.document_id ? `\n[Thread ID: ${c.document_id}]` : '';
-          return truncated + docRef;
+
+          // Generar link directo a Gmail usando thread_id
+          const threadId = c.metadata?.thread_id || c.document_id;
+          const gmailUrl = threadId
+            ? `https://mail.google.com/mail/u/0/#inbox/${threadId}`
+            : null;
+
+          // Mostrar info de hilo si tiene múltiples mensajes
+          const threadInfo = c.threadSize > 1 ? ` (${c.threadSize} mensajes)` : '';
+
+          // Formatear con link clickeable
+          const actionLink = gmailUrl
+            ? `\n[📧 Ver en Gmail](${gmailUrl})${threadInfo}`
+            : `\n[Thread ID: ${threadId}]${threadInfo}`;
+
+          return truncated + actionLink;
         }).join('\n---\n') || null;
 
         // 5.5 Generar resumen con Gemini - PERSONALIZADO
