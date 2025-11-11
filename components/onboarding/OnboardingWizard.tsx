@@ -178,13 +178,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
     setInstallProgress(0);
     setError(null);
 
-    // Simular progreso mientras esperamos respuesta
-    const progressInterval = setInterval(() => {
-      setInstallProgress(prev => {
-        if (prev >= 90) return prev;
-        return prev + 10;
-      });
-    }, 1000);
+    let pollingInterval: NodeJS.Timeout | null = null;
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -193,7 +187,9 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
         throw new Error('Sesión no válida. Por favor inicia sesión nuevamente.');
       }
 
-      const response = await fetch('/api/onboarding/install-template', {
+      // PASO 1: Iniciar el job de instalación (retorna inmediatamente)
+      console.log('[WIZARD] Iniciando instalación...');
+      const startResponse = await fetch('/api/onboarding/install-template', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -204,50 +200,109 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
         })
       });
 
-      const result = await response.json();
+      const startResult = await startResponse.json();
 
-      clearInterval(progressInterval);
-      setInstallProgress(100);
-
-      if (result.success) {
-        // Marcar onboarding como completado
-        await supabase
-          .from('user_preferences')
-          .upsert({
-            user_id: session.user.id,
-            onboarding_completed: true,
-            onboarding_completed_at: new Date().toISOString(),
-            selected_template_pack: selectedTemplate.template_pack_id,
-            template_installed: true
-          }, {
-            onConflict: 'user_id'
-          });
-
-        // Avanzar al paso final
-        setStep(4);
-
-        // Guardar información de la plantilla para el chat
-        localStorage.setItem('onboarding_completed_template', selectedTemplate.template_pack_id);
-        localStorage.setItem('onboarding_template_name', selectedTemplate.name);
-        localStorage.setItem('notion_workspace_url', result.notionWorkspaceUrl || '');
-
-      } else {
-        if (result.needsNotionAuth) {
+      if (!startResult.success) {
+        if (startResult.needsNotionAuth) {
           setError('Necesitas conectar tu cuenta de Notion primero. Redirigiendo...');
           setTimeout(() => {
             router.push('/settings?tab=connections');
           }, 2000);
-        } else {
-          setError(result.error || 'Error desconocido al instalar la plantilla');
+          return;
         }
+        throw new Error(startResult.error || 'No se pudo iniciar la instalación');
       }
 
+      console.log('[WIZARD] Job iniciado, comenzando polling...');
+
+      // PASO 2: Hacer polling al endpoint GET cada 2 segundos
+      const pollEndpoint = startResult.pollEndpoint || `/api/onboarding/install-template?templatePackId=${selectedTemplate.template_pack_id}`;
+
+      pollingInterval = setInterval(async () => {
+        try {
+          const pollResponse = await fetch(pollEndpoint, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`
+            }
+          });
+
+          const pollResult = await pollResponse.json();
+
+          console.log('[WIZARD] Poll result:', pollResult.status, pollResult.progress + '%');
+
+          // Actualizar progreso
+          if (pollResult.progress !== undefined) {
+            setInstallProgress(pollResult.progress);
+          }
+
+          // Verificar si completó
+          if (pollResult.status === 'completed' && pollResult.installed) {
+            console.log('[WIZARD] ✓ Instalación completada');
+
+            // Detener polling
+            if (pollingInterval) {
+              clearInterval(pollingInterval);
+              pollingInterval = null;
+            }
+
+            setInstallProgress(100);
+
+            // Marcar onboarding como completado
+            await supabase
+              .from('user_preferences')
+              .upsert({
+                user_id: session.user.id,
+                onboarding_completed: true,
+                onboarding_completed_at: new Date().toISOString(),
+                selected_template_pack: selectedTemplate.template_pack_id,
+                template_installed: true
+              }, {
+                onConflict: 'user_id'
+              });
+
+            // Guardar información para el chat
+            const parentPageId = pollResult.installedIds?.parent_page_id;
+            const notionUrl = parentPageId
+              ? `https://notion.so/${parentPageId.replace(/-/g, '')}`
+              : '';
+
+            localStorage.setItem('onboarding_completed_template', selectedTemplate.template_pack_id);
+            localStorage.setItem('onboarding_template_name', selectedTemplate.name);
+            localStorage.setItem('notion_workspace_url', notionUrl);
+
+            // Avanzar al paso final
+            setInstalling(false);
+            setStep(4);
+
+          } else if (pollResult.status === 'failed') {
+            console.error('[WIZARD] ✗ Instalación falló:', pollResult.error);
+
+            // Detener polling
+            if (pollingInterval) {
+              clearInterval(pollingInterval);
+              pollingInterval = null;
+            }
+
+            setError(pollResult.error || 'La instalación falló. Por favor intenta nuevamente.');
+            setInstalling(false);
+          }
+
+        } catch (pollError: any) {
+          console.error('[WIZARD] Error en polling:', pollError);
+          // No detener el polling por errores de red temporales
+        }
+      }, 2000); // Polling cada 2 segundos
+
     } catch (err: any) {
-      console.error('Error instalando plantilla:', err);
+      console.error('[WIZARD] Error instalando plantilla:', err);
       setError(err.message || 'Error de conexión. Por favor intenta nuevamente.');
-      clearInterval(progressInterval);
-    } finally {
       setInstalling(false);
+
+      // Limpiar polling si existe
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
     }
   };
 

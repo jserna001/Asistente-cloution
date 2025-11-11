@@ -10,10 +10,5 @@
   "env": {
     "NODE_ENV": "production"
   },
-  "regions": ["iad1"],
-  "functions": {
-    "app/api/onboarding/install-template/route.ts": {
-      "maxDuration": 60
-    }
-  }
+  "regions": ["iad1"]
 }

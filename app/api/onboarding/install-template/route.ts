@@ -23,10 +23,6 @@ import { createClient } from '@supabase/supabase-js';
 import { installNotionTemplate } from '@/lib/services/notionTemplateService';
 import { decryptToken } from '@/lib/tokenService';
 
-// Configuración para Vercel: permitir hasta 60 segundos de ejecución
-export const maxDuration = 60; // seconds
-export const dynamic = 'force-dynamic';
-
 export async function POST(request: Request) {
   try {
     console.log('[API-INSTALL] Iniciando instalación de plantilla...');
@@ -127,35 +123,63 @@ export async function POST(request: Request) {
     const notionToken = await decryptToken(creds);
     console.log('[API-INSTALL] ✓ Token descifrado');
 
-    // 5. Instalar plantilla
-    console.log('[API-INSTALL] Iniciando instalación...');
-    const result = await installNotionTemplate(user.id, notionToken, templatePackId);
+    // 5. Iniciar instalación en background (fire-and-forget para evitar timeout)
+    console.log('[API-INSTALL] Iniciando instalación asíncrona en background...');
 
-    if (result.success) {
-      console.log('[API-INSTALL] ✓ Instalación exitosa');
+    // Crear registro inicial en user_notion_templates
+    const { data: jobData, error: jobError } = await serviceSupabase
+      .from('user_notion_templates')
+      .upsert({
+        user_id: user.id,
+        template_pack_id: templatePackId,
+        installation_status: 'in_progress',
+        installation_progress: 0,
+        installation_started_at: new Date().toISOString(),
+        installation_error: null,
+        installed_notion_ids: {}
+      }, {
+        onConflict: 'user_id,template_pack_id',
+        ignoreDuplicates: false
+      })
+      .select()
+      .single();
 
-      // Construir URL de Notion
-      const parentPageId = result.installedIds['parent_page_id'];
-      const notionUrl = parentPageId
-        ? `https://notion.so/${parentPageId.replace(/-/g, '')}`
-        : null;
-
-      return NextResponse.json({
-        success: true,
-        message: 'Plantilla instalada exitosamente',
-        installedIds: result.installedIds,
-        notionWorkspaceUrl: notionUrl,
-        totalCreated: Object.keys(result.installedIds).length
-      });
-
-    } else {
-      console.error('[API-INSTALL] ✗ Instalación falló:', result.error);
+    if (jobError) {
+      console.error('[API-INSTALL] ✗ Error creando job:', jobError);
       return NextResponse.json({
         success: false,
-        error: result.error || 'Error desconocido durante la instalación',
-        details: 'Hubo un problema al crear las plantillas en Notion. Por favor, intenta nuevamente.'
+        error: 'No se pudo iniciar la instalación',
+        details: jobError.message
       }, { status: 500 });
     }
+
+    console.log('[API-INSTALL] ✓ Job creado, ID:', jobData.id);
+
+    // Lanzar instalación en background (NO hacer await)
+    // La función installNotionTemplate actualizará el progreso en la BD
+    installNotionTemplate(user.id, notionToken, templatePackId)
+      .then(result => {
+        if (result.success) {
+          console.log('[API-INSTALL] ✓ Instalación background completada');
+        } else {
+          console.error('[API-INSTALL] ✗ Instalación background falló:', result.error);
+        }
+      })
+      .catch(error => {
+        console.error('[API-INSTALL] ✗ Error inesperado en background:', error);
+      });
+
+    // Retornar inmediatamente (el frontend hará polling)
+    return NextResponse.json({
+      success: true,
+      message: 'Instalación iniciada. Usa GET para verificar el progreso.',
+      jobId: jobData.id,
+      templatePackId: templatePackId,
+      status: 'in_progress',
+      progress: 0,
+      // Instrucción para el cliente
+      pollEndpoint: `/api/onboarding/install-template?templatePackId=${templatePackId}`
+    });
 
   } catch (error: any) {
     console.error('[API-INSTALL] ✗ Error inesperado:', error);
