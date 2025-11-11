@@ -142,15 +142,13 @@ function OnboardingContent() {
     if (!userId) return;
 
     try {
+      // Guardar en user_preferences en lugar de la vista
       const { error } = await supabase
-        .from('user_onboarding_status')
-        .update({
-          current_step: step,
-          full_name: formData.fullName,
-          timezone_detected: formData.timezone,
-          notion_connected_during_onboarding: formData.notionConnected,
-        })
-        .eq('user_id', userId);
+        .from('user_preferences')
+        .upsert({
+          user_id: userId,
+          timezone: formData.timezone,
+        }, { onConflict: 'user_id' });
 
       if (error) {
         console.error('Error guardando progreso:', error);
@@ -167,25 +165,12 @@ function OnboardingContent() {
     setIsLoading(true);
 
     try {
-      // Actualizar estado de onboarding
-      const { error: onboardingError } = await supabase
-        .from('user_onboarding_status')
-        .update({
-          current_step: 4,
-          completed_at: new Date().toISOString(),
-          full_name: formData.fullName,
-          timezone_detected: formData.timezone,
-          notion_connected_during_onboarding: formData.notionConnected,
-        })
-        .eq('user_id', userId);
-
-      if (onboardingError) throw onboardingError;
-
-      // Guardar preferencias del usuario
+      // Guardar preferencias del usuario y marcar onboarding como completado
       const { error: prefsError } = await supabase
         .from('user_preferences')
         .upsert({
           user_id: userId,
+          onboarding_completed: true,
           daily_summary_enabled: formData.dailySummaryEnabled,
           daily_summary_time: formData.dailySummaryTime + ':00',
           timezone: formData.timezone,
@@ -209,12 +194,13 @@ function OnboardingContent() {
     if (!userId) return;
 
     try {
+      // Marcar onboarding como completado (aunque sea saltado)
       await supabase
-        .from('user_onboarding_status')
-        .update({
-          skipped_at: new Date().toISOString(),
-        })
-        .eq('user_id', userId);
+        .from('user_preferences')
+        .upsert({
+          user_id: userId,
+          onboarding_completed: true,
+        }, { onConflict: 'user_id' });
 
       router.push('/?status=onboarding_skipped');
     } catch (error) {
