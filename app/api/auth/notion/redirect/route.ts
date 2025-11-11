@@ -7,10 +7,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'NOTION_CLIENT_ID no está definido en las variables de entorno.' }, { status: 500 });
   }
 
-  // Determinar la URI de redirección basada en el entorno
-  const redirectUri = process.env.NODE_ENV === 'production'
-    ? 'https://asistente-justine.cloution.cloud/api/auth/notion/callback'
-    : 'http://localhost:3000/api/auth/notion/callback';
+  // Determinar la URI de redirección de forma dinámica basada en el host actual
+  const host = req.headers.get('host');
+  const protocol = req.headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https');
+  const redirectUri = `${protocol}://${host}/api/auth/notion/callback`;
+
+  console.log('[NOTION-REDIRECT] Host:', host);
+  console.log('[NOTION-REDIRECT] Protocol:', protocol);
+  console.log('[NOTION-REDIRECT] Redirect URI:', redirectUri);
 
   // Construir la URL de autorización de Notion
   const notionAuthUrl = new URL('https://api.notion.com/v1/oauth/authorize');
