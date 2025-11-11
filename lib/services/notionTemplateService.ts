@@ -235,17 +235,12 @@ export async function installNotionTemplate(
 
     await updateInstallationProgress(userId, templatePackId, 20);
 
-    // 4. Crear databases
-    console.log(`[TEMPLATE] Paso 4/6: Creando databases (${structure.databases.length})...`);
+    // 4. Crear databases EN PARALELO (optimización de velocidad)
+    console.log(`[TEMPLATE] Paso 4/6: Creando databases (${structure.databases.length}) en paralelo...`);
     const totalDatabases = structure.databases.length;
 
-    for (let i = 0; i < totalDatabases; i++) {
-      const db = structure.databases[i];
-      const progressStart = 20;
-      const progressEnd = 60;
-      const dbProgress = progressStart + ((progressEnd - progressStart) / totalDatabases) * (i + 1);
-
-      console.log(`[TEMPLATE] Creando database ${i + 1}/${totalDatabases}: ${db.name}...`);
+    const databasePromises = structure.databases.map(async (db, index) => {
+      console.log(`[TEMPLATE] Creando database ${index + 1}/${totalDatabases}: ${db.name}...`);
 
       try {
         // Convertir propiedades al formato de Notion API
@@ -273,7 +268,6 @@ export async function installNotionTemplate(
 
         const dbId = extractDatabaseId(dbResult);
         const dbKey = `db_${slugify(db.name)}`;
-        installedIds[dbKey] = dbId;
 
         console.log(`[TEMPLATE] ✓ Database ${db.name} creada: ${dbId}`);
 
@@ -283,25 +277,31 @@ export async function installNotionTemplate(
           // Por ahora, las vistas pueden crearse manualmente o en futuras versiones MCP
         }
 
+        return { key: dbKey, id: dbId };
+
       } catch (dbError: any) {
         console.error(`[TEMPLATE] ✗ Error creando database ${db.name}:`, dbError.message);
-        // Continuamos con las demás
+        return null;
       }
+    });
 
-      await updateInstallationProgress(userId, templatePackId, Math.round(dbProgress));
+    const databaseResults = await Promise.all(databasePromises);
+
+    // Agregar IDs exitosos
+    for (const result of databaseResults) {
+      if (result) {
+        installedIds[result.key] = result.id;
+      }
     }
 
-    // 5. Crear páginas adicionales
-    console.log(`[TEMPLATE] Paso 5/6: Creando páginas adicionales (${structure.pages.length})...`);
+    await updateInstallationProgress(userId, templatePackId, 60);
+
+    // 5. Crear páginas adicionales EN PARALELO (optimización de velocidad)
+    console.log(`[TEMPLATE] Paso 5/6: Creando páginas adicionales (${structure.pages.length}) en paralelo...`);
     const totalPages = structure.pages.length;
 
-    for (let i = 0; i < totalPages; i++) {
-      const page = structure.pages[i];
-      const progressStart = 60;
-      const progressEnd = 90;
-      const pageProgress = progressStart + ((progressEnd - progressStart) / totalPages) * (i + 1);
-
-      console.log(`[TEMPLATE] Creando página ${i + 1}/${totalPages}: ${page.name}...`);
+    const pagePromises = structure.pages.map(async (page, index) => {
+      console.log(`[TEMPLATE] Creando página ${index + 1}/${totalPages}: ${page.name}...`);
 
       try {
         const pageResult = await notion.pages.create({
@@ -320,16 +320,27 @@ export async function installNotionTemplate(
 
         const pageId = extractPageId(pageResult);
         const pageKey = `page_${slugify(page.name)}`;
-        installedIds[pageKey] = pageId;
 
         console.log(`[TEMPLATE] ✓ Página ${page.name} creada: ${pageId}`);
 
+        return { key: pageKey, id: pageId };
+
       } catch (pageError: any) {
         console.error(`[TEMPLATE] ✗ Error creando página ${page.name}:`, pageError.message);
+        return null;
       }
+    });
 
-      await updateInstallationProgress(userId, templatePackId, Math.round(pageProgress));
+    const pageResults = await Promise.all(pagePromises);
+
+    // Agregar IDs exitosos
+    for (const result of pageResults) {
+      if (result) {
+        installedIds[result.key] = result.id;
+      }
     }
+
+    await updateInstallationProgress(userId, templatePackId, 90);
 
     // 6. Actualizar estado final
     console.log(`[TEMPLATE] Paso 6/6: Finalizando instalación...`);

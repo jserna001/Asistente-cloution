@@ -23,6 +23,10 @@ import { createClient } from '@supabase/supabase-js';
 import { installNotionTemplate } from '@/lib/services/notionTemplateService';
 import { decryptToken } from '@/lib/tokenService';
 
+// Configuración para Vercel: permitir hasta 60 segundos de ejecución
+export const maxDuration = 60; // seconds
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   try {
     console.log('[API-INSTALL] Iniciando instalación de plantilla...');
