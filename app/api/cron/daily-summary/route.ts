@@ -6,6 +6,41 @@ import { decryptToken } from '@/lib/tokenService';
 import { getGoogleOAuthClient } from '@/lib/googleAuth';
 
 /**
+ * Obtiene las queries RAG predeterminadas según la plantilla del usuario
+ */
+async function getTemplateQueries(
+  supabase: any,
+  templatePackId: string | null
+): Promise<{ notion: string[]; gmail: string[]; calendar: string[] }> {
+  // Si no tiene plantilla, usar queries por defecto
+  if (!templatePackId) {
+    return {
+      notion: ["¿Cuáles son mis tareas pendientes?"],
+      gmail: ["¿Hay algún correo urgente o importante?"],
+      calendar: ["Eventos de hoy"]
+    };
+  }
+
+  const { data: template, error } = await supabase
+    .from('notion_template_catalog')
+    .select('default_rag_queries')
+    .eq('template_pack_id', templatePackId)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (error || !template || !template.default_rag_queries) {
+    console.warn(`[CRON] No se encontró plantilla ${templatePackId}, usando queries por defecto`);
+    return {
+      notion: ["¿Cuáles son mis tareas pendientes?"],
+      gmail: ["¿Hay algún correo urgente o importante?"],
+      calendar: ["Eventos de hoy"]
+    };
+  }
+
+  return template.default_rag_queries;
+}
+
+/**
  * API endpoint para generar el resumen diario.
  * Puede ser llamado por:
  * 1. Cron jobs del sistema
@@ -93,14 +128,50 @@ export async function GET(request: Request) {
     const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
     const chatModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    let usersToProcess: Array<{ user_id: string; daily_summary_time: string; timezone: string }> = [];
+    interface UserPreferences {
+      user_id: string;
+      daily_summary_time: string;
+      timezone: string;
+      selected_template_pack?: string | null;
+      notion_database_ids?: string[] | null;
+      notion_task_statuses?: string[] | null;
+      gmail_priority_senders?: string[] | null;
+      gmail_keywords?: string[] | null;
+      summary_length?: string | null;
+      summary_tone?: string | null;
+      use_emojis?: boolean | null;
+      group_by_category?: boolean | null;
+      include_action_items?: boolean | null;
+      include_calendar?: boolean | null;
+      include_notion?: boolean | null;
+      include_gmail?: boolean | null;
+    }
+
+    let usersToProcess: UserPreferences[] = [];
 
     // 3. Determinar qué usuarios procesar
     if (authenticatedUserId) {
       // Usuario individual autenticado - solo procesar su resumen
       const { data: userPref, error: prefError } = await supabase
         .from('user_preferences')
-        .select('user_id, daily_summary_time, timezone')
+        .select(`
+          user_id,
+          daily_summary_time,
+          timezone,
+          selected_template_pack,
+          notion_database_ids,
+          notion_task_statuses,
+          gmail_priority_senders,
+          gmail_keywords,
+          summary_length,
+          summary_tone,
+          use_emojis,
+          group_by_category,
+          include_action_items,
+          include_calendar,
+          include_notion,
+          include_gmail
+        `)
         .eq('user_id', authenticatedUserId)
         .eq('daily_summary_enabled', true)
         .maybeSingle();
@@ -125,7 +196,24 @@ export async function GET(request: Request) {
       // Cron automático - procesar todos los usuarios que necesitan resumen
       const { data: userPrefs, error: prefsError } = await supabase
         .from('user_preferences')
-        .select('user_id, daily_summary_time, timezone')
+        .select(`
+          user_id,
+          daily_summary_time,
+          timezone,
+          selected_template_pack,
+          notion_database_ids,
+          notion_task_statuses,
+          gmail_priority_senders,
+          gmail_keywords,
+          summary_length,
+          summary_tone,
+          use_emojis,
+          group_by_category,
+          include_action_items,
+          include_calendar,
+          include_notion,
+          include_gmail
+        `)
         .eq('daily_summary_enabled', true);
 
       if (prefsError) {
@@ -256,28 +344,71 @@ export async function GET(request: Request) {
           return `${start} - ${event.summary}`;
         }).join('\n');
 
-        // 5.3 Leer Tareas de Notion (RAG)
-        console.log(`[CRON] [${userId}] Buscando tareas en Notion...`);
-        const notionQueryEmbedding = await embeddingModel.embedContent(
-          "¿Cuáles son mis tareas pendientes o lista de compras?"
+        // 5.3 Leer Tareas de Notion (RAG) - PERSONALIZADO POR PLANTILLA
+        console.log(`[CRON] [${userId}] Buscando información en Notion...`);
+
+        // Obtener queries dinámicas según la plantilla del usuario
+        const templateQueries = await getTemplateQueries(supabase, userPref.selected_template_pack || null);
+        const notionQueries = templateQueries.notion;
+
+        console.log(`[CRON] [${userId}] Plantilla: ${userPref.selected_template_pack || 'ninguna'}`);
+        console.log(`[CRON] [${userId}] Queries de Notion:`, notionQueries);
+
+        // Ejecutar múltiples queries y combinar resultados
+        const notionChunksArrays = await Promise.all(
+          notionQueries.map(async (query) => {
+            const embedding = await embeddingModel.embedContent(query);
+            const { data, error } = await supabase.rpc('match_document_chunks', {
+              query_embedding: embedding.embedding.values,
+              match_threshold: 0.6,
+              match_count: 3, // 3 chunks por query
+              p_source_type: 'notion',
+              p_user_id: userId
+            });
+
+            if (error) {
+              console.error(`[CRON] [${userId}] Error en query "${query}":`, error.message);
+              return [];
+            }
+
+            return data || [];
+          })
         );
 
-        const { data: notionChunks, error: notionError } = await supabase.rpc('match_document_chunks', {
-          query_embedding: notionQueryEmbedding.embedding.values,
-          match_threshold: 0.6,
-          match_count: 5,
-          p_source_type: 'notion',
-          p_user_id: userId
+        // Combinar y deduplicar chunks (por si dos queries retornan el mismo)
+        const notionChunksMap = new Map();
+        notionChunksArrays.flat().forEach(chunk => {
+          if (!notionChunksMap.has(chunk.id)) {
+            notionChunksMap.set(chunk.id, chunk);
+          }
         });
 
-        if (notionError) throw new Error(`Error buscando en Notion: ${notionError.message}`);
-        const notionContext = notionChunks?.map((c: any) => c.content).join('\n---\n') || null;
+        const notionChunks = Array.from(notionChunksMap.values());
+        const notionContext = notionChunks.map((c: any) => c.content).join('\n---\n') || null;
 
-        // 5.4 Leer Correos de Gmail (RAG)
+        console.log(`[CRON] [${userId}] Encontrados ${notionChunks.length} chunks relevantes en Notion`);
+
+        // 5.4 Leer Correos de Gmail (RAG) - PERSONALIZADO
         console.log(`[CRON] [${userId}] Buscando correos importantes...`);
-        const gmailQueryEmbedding = await embeddingModel.embedContent(
-          "¿Hay algún correo urgente o importante que necesite mi atención?"
-        );
+
+        // Construir query dinámica basada en preferencias del usuario
+        let gmailQuery = templateQueries.gmail[0] || "¿Hay algún correo urgente o importante?";
+
+        // Agregar contexto de remitentes prioritarios
+        if (userPref.gmail_priority_senders && userPref.gmail_priority_senders.length > 0) {
+          const senders = userPref.gmail_priority_senders.slice(0, 3).join(', ');
+          gmailQuery += ` Especialmente de: ${senders}.`;
+        }
+
+        // Agregar keywords
+        if (userPref.gmail_keywords && userPref.gmail_keywords.length > 0) {
+          const keywords = userPref.gmail_keywords.slice(0, 5).join(', ');
+          gmailQuery += ` Busca palabras clave: ${keywords}.`;
+        }
+
+        console.log(`[CRON] [${userId}] Query de Gmail personalizada: "${gmailQuery}"`);
+
+        const gmailQueryEmbedding = await embeddingModel.embedContent(gmailQuery);
 
         const { data: gmailChunks, error: gmailError } = await supabase.rpc('match_document_chunks', {
           query_embedding: gmailQueryEmbedding.embedding.values,
@@ -290,31 +421,78 @@ export async function GET(request: Request) {
         if (gmailError) throw new Error(`Error buscando en Gmail: ${gmailError.message}`);
         const gmailContext = gmailChunks?.map((c: any) => c.content).join('\n---\n') || null;
 
-        // 5.5 Generar resumen con Gemini
+        // 5.5 Generar resumen con Gemini - PERSONALIZADO
         console.log(`[CRON] [${userId}] Generando resumen con Gemini...`);
+
+        // Mapeos de configuraciones a instrucciones
+        const lengthInstructions: Record<string, string> = {
+          brief: "Resume en 2-3 puntos clave máximo, ultra conciso",
+          balanced: "Resume en 4-6 puntos clave, equilibrando detalle y brevedad",
+          detailed: "Detalla 8-10 puntos importantes con contexto adicional"
+        };
+
+        const toneInstructions: Record<string, string> = {
+          professional: "Usa lenguaje formal y directo. Evita coloquialismos. Sé objetivo y estructurado.",
+          friendly: "Usa lenguaje cercano y amigable. Sé conversacional pero respetuoso.",
+          motivational: "Sé inspirador y energético. Enfatiza oportunidades, logros y posibilidades. Anima al usuario."
+        };
+
+        // Obtener configuraciones (con defaults por si son null)
+        const summaryLength = userPref.summary_length || 'balanced';
+        const summaryTone = userPref.summary_tone || 'friendly';
+        const useEmojis = userPref.use_emojis !== false; // default true
+        const groupByCategory = userPref.group_by_category !== false; // default true
+        const includeActionItems = userPref.include_action_items !== false; // default true
+
+        // Mensaje por defecto si no hay nada
+        const emptyMessage = summaryTone === 'motivational'
+          ? '¡Todo tranquilo por hoy! Es un gran día para avanzar en tus objetivos personales.'
+          : summaryTone === 'professional'
+            ? 'No hay elementos críticos programados para hoy.'
+            : 'Todo tranquilo por hoy, ¡que tengas un gran día!';
+
         const systemPrompt = `Eres mi asistente personal. Hoy es ${new Date().toLocaleDateString('es-ES', {
           weekday: 'long',
           year: 'numeric',
           month: 'long',
           day: 'numeric'
-        })}. Aquí está mi información del día.
+        })}.
 
-Eventos del Calendario:
+INSTRUCCIONES DE FORMATO:
+- LONGITUD: ${lengthInstructions[summaryLength]}
+- TONO: ${toneInstructions[summaryTone]}
+- EMOJIS: ${useEmojis ? 'USA emojis relevantes para categorías (ej: 📅 Reuniones, ✅ Tareas, 📧 Correos, 🎯 Objetivos)' : 'NO uses emojis en absoluto'}
+- ESTRUCTURA: ${groupByCategory ? 'AGRUPA la información por categorías claras (Reuniones, Tareas, Correos, etc.)' : 'Presenta en orden de prioridad sin categorizar'}
+${includeActionItems ? '- INCLUYE una sección final "Action Items" o "Para Hoy" con tareas específicas para hoy' : ''}
+
+---
+
+Aquí está la información del día:
+
+${userPref.include_calendar !== false ? `
+📅 Eventos del Calendario:
 ---
 ${calendarContext || 'No hay eventos programados para hoy.'}
 ---
+` : ''}
 
-Tareas y Notas de Notion:
+${userPref.include_notion !== false ? `
+📝 Información de Notion:
 ---
-${notionContext || 'Sin notas o tareas relevantes encontradas.'}
+${notionContext || 'Sin información relevante encontrada en Notion.'}
 ---
+` : ''}
 
-Correos Relevantes:
+${userPref.include_gmail !== false ? `
+📧 Correos Relevantes:
 ---
 ${gmailContext || 'No se encontraron correos urgentes.'}
 ---
+` : ''}
 
-Tu tarea: Escribe un resumen matutino conciso y amigable (máximo 3-5 puntos clave) de lo que necesito saber hoy. Sé directo, prioriza lo más importante y agrupa la información por tema (ej. "Reuniones", "Tareas Urgentes"). Si no hay nada destacable, simplemente di "Todo tranquilo por hoy, ¡que tengas un gran día!".`;
+Tu tarea: Genera el resumen matutino siguiendo EXACTAMENTE las instrucciones de formato arriba. Si no hay información importante, simplemente di "${emptyMessage}".`;
+
+        console.log(`[CRON] [${userId}] Config: ${summaryLength} / ${summaryTone} / ${useEmojis ? 'con' : 'sin'} emojis`);
 
         const result = await chatModel.generateContent(systemPrompt);
         const summaryText = result.response.text();
@@ -333,14 +511,25 @@ Tu tarea: Escribe un resumen matutino conciso y amigable (máximo 3-5 puntos cla
         }
 
         console.log(`[CRON] [${userId}] ✓ Resumen generado y guardado exitosamente`);
+        console.log(`[CRON] [${userId}] Plantilla: ${userPref.selected_template_pack || 'ninguna'}`);
+        console.log(`[CRON] [${userId}] Configuración: ${summaryLength} / ${summaryTone} / ${useEmojis ? 'con' : 'sin'} emojis`);
 
         results.push({
           userId,
           success: true,
+          config: {
+            template: userPref.selected_template_pack || null,
+            length: summaryLength,
+            tone: summaryTone,
+            emojis: useEmojis,
+            groupByCategory,
+            includeActionItems
+          },
           stats: {
             calendarEvents: calendarEvents.length,
-            notionChunks: notionChunks?.length || 0,
+            notionChunks: notionChunks.length,
             gmailChunks: gmailChunks?.length || 0,
+            notionQueries: notionQueries.length
           }
         });
 
