@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createSupabaseBrowserClient } from '@/lib/supabaseClient';
 
 interface SummaryFeedbackProps {
   summaryId: string;
@@ -14,7 +14,7 @@ export default function SummaryFeedback({ summaryId, onFeedbackSubmitted }: Summ
   const [showDetailedFeedback, setShowDetailedFeedback] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [feedbackText, setFeedbackText] = useState('');
-  const supabase = createClientComponentClient();
+  const supabase = createSupabaseBrowserClient();
 
   const feedbackTags = [
     'Tareas importantes omitidas',

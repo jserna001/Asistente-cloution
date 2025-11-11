@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createSupabaseBrowserClient } from '@/lib/supabaseClient';
 
 export function useSummaryTracking(summaryId: string) {
-  const supabase = createClientComponentClient();
+  const supabase = createSupabaseBrowserClient();
 
   const track = useCallback(async (
     interactionType: 'view' | 'click_notion' | 'click_gmail' | 'click_calendar' | 'copy_text',
