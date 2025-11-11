@@ -6,6 +6,125 @@ import { decryptToken } from '@/lib/tokenService';
 import { getGoogleOAuthClient } from '@/lib/googleAuth';
 
 /**
+ * Cache global de embeddings para evitar regenerar embeddings de queries comunes.
+ * Ahorro: Con 100 usuarios = 400+ embeddings evitados por día
+ */
+const embeddingCache = new Map<string, number[]>();
+
+/**
+ * Helper para obtener embedding con cache
+ */
+async function getCachedEmbedding(
+  embeddingModel: any,
+  text: string
+): Promise<number[]> {
+  const cacheKey = text.trim().toLowerCase();
+
+  if (embeddingCache.has(cacheKey)) {
+    console.log(`[CACHE] Hit para query: "${text.substring(0, 50)}..."`);
+    return embeddingCache.get(cacheKey)!;
+  }
+
+  console.log(`[CACHE] Miss para query: "${text.substring(0, 50)}..."`);
+  const result = await embeddingModel.embedContent(text);
+  const embedding = result.embedding.values;
+
+  // Limitar cache a 100 entradas para evitar memory leak
+  if (embeddingCache.size >= 100) {
+    const firstKey = embeddingCache.keys().next().value;
+    embeddingCache.delete(firstKey);
+  }
+
+  embeddingCache.set(cacheKey, embedding);
+  return embedding;
+}
+
+/**
+ * Retry logic con backoff exponencial para APIs externas
+ * @param fn - Función a ejecutar
+ * @param retries - Número de reintentos (default: 3)
+ * @param operation - Nombre de la operación para logging
+ * @returns Resultado de la función o null si falla todos los intentos
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries: number = 3,
+  operation: string = 'Operation'
+): Promise<T | null> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isLastAttempt = attempt === retries;
+
+      if (isLastAttempt) {
+        console.error(`[RETRY] ${operation} falló después de ${retries} intentos:`, error.message);
+        return null;
+      }
+
+      const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // max 5s
+      console.warn(`[RETRY] ${operation} falló (intento ${attempt}/${retries}), reintentando en ${delayMs}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Calcula el score de prioridad para un chunk basándose en:
+ * - Proximidad temporal (fechas cercanas)
+ * - Palabras clave de urgencia
+ * - Similarity score del RAG
+ */
+function calculatePriorityScore(chunk: any): number {
+  let score = chunk.similarity || 0; // Base: similarity del RAG (0-1)
+
+  const content = chunk.content.toLowerCase();
+  const now = new Date();
+
+  // +3 puntos: Palabras clave de urgencia
+  const urgencyKeywords = ['urgente', 'importante', 'asap', 'hoy', 'deadline', 'crítico', 'blocker'];
+  const hasUrgency = urgencyKeywords.some(kw => content.includes(kw));
+  if (hasUrgency) score += 3;
+
+  // +5 puntos: Fechas de hoy o mañana
+  const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+  if (content.includes(todayStr) || content.includes('today') || content.includes('hoy')) {
+    score += 5;
+  } else if (content.includes(tomorrowStr) || content.includes('tomorrow') || content.includes('mañana')) {
+    score += 3;
+  }
+
+  // +2 puntos: Status de alta prioridad
+  const priorityStatuses = ['high', 'alta', 'urgent', 'crítica'];
+  const hasPriorityStatus = priorityStatuses.some(status => content.includes(status));
+  if (hasPriorityStatus) score += 2;
+
+  // +1 punto: Menciones de números pequeños (días restantes)
+  const daysMatch = content.match(/(\d+)\s*(días?|days?)\s*(restantes?|remaining|left)/i);
+  if (daysMatch) {
+    const daysLeft = parseInt(daysMatch[1]);
+    if (daysLeft <= 3) score += 1;
+  }
+
+  return score;
+}
+
+/**
+ * Trunca el contenido de un chunk si es demasiado largo
+ * Máximo: 500 caracteres por chunk para optimizar tokens
+ */
+function truncateChunkContent(content: string, maxLength: number = 500): string {
+  if (content.length <= maxLength) return content;
+  return content.substring(0, maxLength) + '... [truncado]';
+}
+
+/**
  * Obtiene las queries RAG predeterminadas según la plantilla del usuario
  */
 async function getTemplateQueries(
@@ -318,7 +437,7 @@ export async function GET(request: Request) {
         const oauth2Client = getGoogleOAuthClient();
         oauth2Client.setCredentials({ refresh_token: refreshToken });
 
-        // 5.2 Leer Google Calendar
+        // 5.2 Leer Google Calendar con retry
         console.log(`[CRON] [${userId}] Leyendo Google Calendar...`);
         const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
         // Obtener rango de fechas para eventos de hoy
@@ -327,16 +446,20 @@ export async function GET(request: Request) {
         const todayEnd = new Date();
         todayEnd.setHours(23, 59, 59, 999);
 
-        const calendarResponse = await calendar.events.list({
-          calendarId: 'primary',
-          timeMin: todayStart.toISOString(),
-          timeMax: todayEnd.toISOString(),
-          maxResults: 5,
-          singleEvents: true,
-          orderBy: 'startTime',
-        });
+        const calendarResponse = await withRetry(
+          () => calendar.events.list({
+            calendarId: 'primary',
+            timeMin: todayStart.toISOString(),
+            timeMax: todayEnd.toISOString(),
+            maxResults: 5,
+            singleEvents: true,
+            orderBy: 'startTime',
+          }),
+          3,
+          `Calendar[${userId}]`
+        );
 
-        const calendarEvents = calendarResponse.data.items || [];
+        const calendarEvents = calendarResponse?.data?.items || [];
         const calendarContext = calendarEvents.map(event => {
           const start = event.start?.dateTime
             ? new Date(event.start.dateTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
@@ -354,24 +477,29 @@ export async function GET(request: Request) {
         console.log(`[CRON] [${userId}] Plantilla: ${userPref.selected_template_pack || 'ninguna'}`);
         console.log(`[CRON] [${userId}] Queries de Notion:`, notionQueries);
 
-        // Ejecutar múltiples queries y combinar resultados
+        // Ejecutar múltiples queries y combinar resultados con retry
         const notionChunksArrays = await Promise.all(
           notionQueries.map(async (query) => {
-            const embedding = await embeddingModel.embedContent(query);
-            const { data, error } = await supabase.rpc('match_document_chunks', {
-              query_embedding: embedding.embedding.values,
-              match_threshold: 0.6,
-              match_count: 3, // 3 chunks por query
-              p_source_type: 'notion',
-              p_user_id: userId
-            });
+            const embedding = await getCachedEmbedding(embeddingModel, query);
 
-            if (error) {
-              console.error(`[CRON] [${userId}] Error en query "${query}":`, error.message);
+            const result = await withRetry(
+              () => supabase.rpc('match_document_chunks', {
+                query_embedding: embedding,
+                match_threshold: 0.75, // Aumentado de 0.6 para mayor relevancia
+                match_count: 2, // Reducido de 3 para optimizar context
+                p_source_type: 'notion',
+                p_user_id: userId
+              }),
+              3,
+              `Notion RAG[${userId}] - "${query.substring(0, 30)}"`
+            );
+
+            if (!result || result.error) {
+              console.error(`[CRON] [${userId}] Error en query "${query}":`, result?.error?.message || 'Failed after retries');
               return [];
             }
 
-            return data || [];
+            return result.data || [];
           })
         );
 
@@ -383,10 +511,20 @@ export async function GET(request: Request) {
           }
         });
 
-        const notionChunks = Array.from(notionChunksMap.values());
-        const notionContext = notionChunks.map((c: any) => c.content).join('\n---\n') || null;
+        // Priorizar chunks por urgencia y relevancia
+        const notionChunks = Array.from(notionChunksMap.values())
+          .map(chunk => ({
+            ...chunk,
+            priorityScore: calculatePriorityScore(chunk)
+          }))
+          .sort((a, b) => b.priorityScore - a.priorityScore); // Mayor prioridad primero
 
-        console.log(`[CRON] [${userId}] Encontrados ${notionChunks.length} chunks relevantes en Notion`);
+        // Truncar chunks largos para optimizar context window
+        const notionContext = notionChunks
+          .map((c: any) => truncateChunkContent(c.content))
+          .join('\n---\n') || null;
+
+        console.log(`[CRON] [${userId}] Encontrados ${notionChunks.length} chunks relevantes en Notion (ordenados por prioridad)`);
 
         // 5.4 Leer Correos de Gmail (RAG) - PERSONALIZADO
         console.log(`[CRON] [${userId}] Buscando correos importantes...`);
@@ -408,18 +546,32 @@ export async function GET(request: Request) {
 
         console.log(`[CRON] [${userId}] Query de Gmail personalizada: "${gmailQuery}"`);
 
-        const gmailQueryEmbedding = await embeddingModel.embedContent(gmailQuery);
+        const gmailQueryEmbedding = await getCachedEmbedding(embeddingModel, gmailQuery);
 
-        const { data: gmailChunks, error: gmailError } = await supabase.rpc('match_document_chunks', {
-          query_embedding: gmailQueryEmbedding.embedding.values,
-          match_threshold: 0.7,
-          match_count: 3,
-          p_source_type: 'gmail',
-          p_user_id: userId
-        });
+        const gmailResult = await withRetry(
+          () => supabase.rpc('match_document_chunks', {
+            query_embedding: gmailQueryEmbedding,
+            match_threshold: 0.75, // Aumentado de 0.7 para mayor relevancia
+            match_count: 2, // Reducido de 3 para optimizar context
+            p_source_type: 'gmail',
+            p_user_id: userId
+          }),
+          3,
+          `Gmail RAG[${userId}]`
+        );
 
-        if (gmailError) throw new Error(`Error buscando en Gmail: ${gmailError.message}`);
-        const gmailContext = gmailChunks?.map((c: any) => c.content).join('\n---\n') || null;
+        const gmailChunksRaw = gmailResult?.data || [];
+
+        // Priorizar correos por urgencia
+        const gmailChunks = gmailChunksRaw
+          .map((chunk: any) => ({
+            ...chunk,
+            priorityScore: calculatePriorityScore(chunk)
+          }))
+          .sort((a: any, b: any) => b.priorityScore - a.priorityScore);
+
+        // Truncar correos largos para optimizar context window
+        const gmailContext = gmailChunks?.map((c: any) => truncateChunkContent(c.content)).join('\n---\n') || null;
 
         // 5.5 Generar resumen con Gemini - PERSONALIZADO
         console.log(`[CRON] [${userId}] Generando resumen con Gemini...`);
