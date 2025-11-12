@@ -16,6 +16,7 @@ import {
   CalendarIcon,
   SendIcon,
   SpinnerIcon,
+  RefreshIcon,
   AnimatedIcon,
   ModelBadge,
 } from '../components/Icons';
@@ -37,12 +38,17 @@ interface QuickAction {
   action: string;
 }
 
+type MessageStatus = 'sending' | 'sent' | 'failed';
+
 interface Message {
+  id: string; // ID único para identificar mensajes
   sender: 'user' | 'ai';
   text: string;
   metadata?: MessageMetadata;
   timestamp: number;
   quickActions?: QuickAction[];
+  status?: MessageStatus; // Estado del mensaje (solo para mensajes de usuario)
+  error?: string; // Mensaje de error (solo cuando status === 'failed')
 }
 
 // Componente de Botón Copiar
@@ -388,6 +394,7 @@ Háblame naturalmente y yo me encargo de Notion 😊
 
     // Agregar mensaje del asistente con quick actions
     setMessages([{
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       sender: 'ai',
       text: welcomeMessage,
       timestamp: Date.now(),
@@ -471,10 +478,15 @@ Háblame naturalmente y yo me encargo de Notion 😊
     if (!currentQuery.trim() || isLoading) return;
 
     const userQuery = currentQuery;
+    const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Agregar mensaje del usuario con estado 'sending'
     setMessages((prev) => [...prev, {
+      id: messageId,
       sender: 'user',
       text: userQuery,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      status: 'sending'
     }]);
     setCurrentQuery('');
     setIsLoading(true);
@@ -488,7 +500,17 @@ Háblame naturalmente y yo me encargo de Notion 😊
       accessToken = session.access_token;
     } catch (error) {
       console.error('Error obteniendo la sesión:', error);
+
+      // Actualizar mensaje del usuario a 'failed'
+      setMessages((prev) => prev.map(msg =>
+        msg.id === messageId
+          ? { ...msg, status: 'failed' as MessageStatus, error: 'Error de autenticación' }
+          : msg
+      ));
+
+      // Agregar mensaje de error del AI
       setMessages((prev) => [...prev, {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         sender: 'ai',
         text: 'Error: No pude verificar tu sesión. Por favor, inicia sesión de nuevo.',
         timestamp: Date.now()
@@ -512,7 +534,17 @@ Háblame naturalmente y yo me encargo de Notion 😊
       }
 
       const data = await response.json();
+
+      // Actualizar mensaje del usuario a 'sent'
+      setMessages((prev) => prev.map(msg =>
+        msg.id === messageId
+          ? { ...msg, status: 'sent' as MessageStatus }
+          : msg
+      ));
+
+      // Agregar respuesta del AI
       setMessages((prev) => [...prev, {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         sender: 'ai',
         text: data.answer,
         metadata: data.metadata,
@@ -520,11 +552,94 @@ Háblame naturalmente y yo me encargo de Notion 😊
       }]);
     } catch (error) {
       console.error('Error en la API de chat:', error);
+
+      // Actualizar mensaje del usuario a 'failed'
+      setMessages((prev) => prev.map(msg =>
+        msg.id === messageId
+          ? { ...msg, status: 'failed' as MessageStatus, error: 'Error al enviar el mensaje' }
+          : msg
+      ));
+
+      // Agregar mensaje de error del AI
       setMessages((prev) => [...prev, {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         sender: 'ai',
         text: 'Lo siento, algo salió mal al contactar al asistente.',
         timestamp: Date.now()
       }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Función para reintentar un mensaje fallido
+  const handleRetry = async (failedMessage: Message) => {
+    if (failedMessage.sender !== 'user' || failedMessage.status !== 'failed') return;
+
+    // Actualizar estado a 'sending'
+    setMessages((prev) => prev.map(msg =>
+      msg.id === failedMessage.id
+        ? { ...msg, status: 'sending' as MessageStatus, error: undefined }
+        : msg
+    ));
+    setIsLoading(true);
+
+    let accessToken = '';
+
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (!session) throw new Error('Usuario no autenticado.');
+      accessToken = session.access_token;
+    } catch (error) {
+      console.error('Error obteniendo la sesión:', error);
+      setMessages((prev) => prev.map(msg =>
+        msg.id === failedMessage.id
+          ? { ...msg, status: 'failed' as MessageStatus, error: 'Error de autenticación' }
+          : msg
+      ));
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ query: failedMessage.text }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error de API: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Actualizar mensaje a 'sent'
+      setMessages((prev) => prev.map(msg =>
+        msg.id === failedMessage.id
+          ? { ...msg, status: 'sent' as MessageStatus }
+          : msg
+      ));
+
+      // Agregar respuesta del AI
+      setMessages((prev) => [...prev, {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        sender: 'ai',
+        text: data.answer,
+        metadata: data.metadata,
+        timestamp: Date.now()
+      }]);
+    } catch (error) {
+      console.error('Error en la API de chat:', error);
+      setMessages((prev) => prev.map(msg =>
+        msg.id === failedMessage.id
+          ? { ...msg, status: 'failed' as MessageStatus, error: 'Error al enviar el mensaje' }
+          : msg
+      ));
     } finally {
       setIsLoading(false);
     }
@@ -663,25 +778,120 @@ Háblame naturalmente y yo me encargo de Notion 😊
           flexDirection: 'column',
           gap: 'var(--space-4)',
         }}>
-        {messages.map((msg, index) => (
-          <AnimatedMessage key={index} sender={msg.sender}>
-            {/* Mensaje */}
-            <div className="message-content" style={{
-              padding: 'var(--space-4)',
-              borderRadius: 'var(--radius-lg)',
-              maxWidth: '80%',
-              backgroundColor: msg.sender === 'user' ? 'var(--accent-blue)' : 'var(--bg-secondary)',
-              color: msg.sender === 'user' ? 'white' : 'var(--text-primary)',
-              border: msg.sender === 'ai' ? '1px solid var(--border-primary)' : 'none',
-            }}>
-              <p style={{
-                whiteSpace: 'pre-wrap',
-                margin: 0,
-                lineHeight: 'var(--leading-relaxed)',
+        {messages.map((msg) => {
+          // Determinar estilo según estado del mensaje
+          const getMessageStyle = () => {
+            if (msg.sender === 'ai') {
+              return {
+                backgroundColor: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-primary)',
+                opacity: 1,
+              };
+            }
+
+            // Mensajes de usuario
+            switch (msg.status) {
+              case 'sending':
+                return {
+                  backgroundColor: 'rgba(14, 165, 233, 0.6)',
+                  color: 'white',
+                  border: 'none',
+                  opacity: 0.8,
+                };
+              case 'failed':
+                return {
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--accent-red)',
+                  opacity: 1,
+                };
+              default: // 'sent'
+                return {
+                  backgroundColor: 'var(--accent-blue)',
+                  color: 'white',
+                  border: 'none',
+                  opacity: 1,
+                };
+            }
+          };
+
+          return (
+            <AnimatedMessage key={msg.id} sender={msg.sender}>
+              {/* Mensaje */}
+              <div className="message-content" style={{
+                padding: 'var(--space-4)',
+                borderRadius: 'var(--radius-lg)',
+                maxWidth: '80%',
+                ...getMessageStyle(),
+                transition: 'all 0.3s ease',
               }}>
-                {msg.text}
-              </p>
-            </div>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-2)',
+                }}>
+                  {/* Spinner para mensajes enviándose */}
+                  {msg.status === 'sending' && (
+                    <SpinnerIcon size={14} />
+                  )}
+                  <p style={{
+                    whiteSpace: 'pre-wrap',
+                    margin: 0,
+                    lineHeight: 'var(--leading-relaxed)',
+                    flex: 1,
+                  }}>
+                    {msg.text}
+                  </p>
+                </div>
+
+                {/* Mensaje de error para mensajes fallidos */}
+                {msg.status === 'failed' && msg.error && (
+                  <div style={{
+                    marginTop: 'var(--space-2)',
+                    padding: 'var(--space-2)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--accent-red)',
+                  }}>
+                    {msg.error}
+                  </div>
+                )}
+              </div>
+
+              {/* Botón de reintentar para mensajes fallidos */}
+              {msg.status === 'failed' && msg.sender === 'user' && (
+                <button
+                  onClick={() => handleRetry(msg)}
+                  style={{
+                    marginTop: 'var(--space-2)',
+                    padding: 'var(--space-2) var(--space-3)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--accent-red)',
+                    backgroundColor: 'transparent',
+                    color: 'var(--accent-red)',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 'var(--font-medium)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                    transition: 'all var(--transition-fast)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--accent-red)';
+                    e.currentTarget.style.color = 'white';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = 'var(--accent-red)';
+                  }}
+                >
+                  <RefreshIcon size={14} />
+                  Reintentar
+                </button>
+              )}
 
             {/* Metadata y acciones (solo para AI) */}
             {msg.sender === 'ai' && msg.metadata && (
@@ -712,55 +922,56 @@ Háblame naturalmente y yo me encargo de Notion 😊
               </div>
             )}
 
-            {/* Botones de acción rápida */}
-            {msg.sender === 'ai' && msg.quickActions && msg.quickActions.length > 0 && (
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 'var(--space-2)',
-                marginTop: 'var(--space-3)',
-              }}>
-                {msg.quickActions.map((quickAction, actionIndex) => (
-                  <button
-                    key={actionIndex}
-                    onClick={() => handleQuickAction(quickAction.action)}
-                    style={{
-                      padding: 'var(--space-2) var(--space-4)',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--border-primary)',
-                      backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
-                      fontSize: 'var(--text-sm)',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--space-2)',
-                      transition: 'all var(--transition-fast)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--accent-blue)';
-                      e.currentTarget.style.color = 'white';
-                      e.currentTarget.style.borderColor = 'var(--accent-blue)';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(14, 165, 233, 0.2)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
-                      e.currentTarget.style.color = 'var(--text-primary)';
-                      e.currentTarget.style.borderColor = 'var(--border-primary)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    <span>{quickAction.icon}</span>
-                    <span>{quickAction.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </AnimatedMessage>
-        ))}
+              {/* Botones de acción rápida */}
+              {msg.sender === 'ai' && msg.quickActions && msg.quickActions.length > 0 && (
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 'var(--space-2)',
+                  marginTop: 'var(--space-3)',
+                }}>
+                  {msg.quickActions.map((quickAction, actionIndex) => (
+                    <button
+                      key={actionIndex}
+                      onClick={() => handleQuickAction(quickAction.action)}
+                      style={{
+                        padding: 'var(--space-2) var(--space-4)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-primary)',
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-2)',
+                        transition: 'all var(--transition-fast)',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--accent-blue)';
+                        e.currentTarget.style.color = 'white';
+                        e.currentTarget.style.borderColor = 'var(--accent-blue)';
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(14, 165, 233, 0.2)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                        e.currentTarget.style.color = 'var(--text-primary)';
+                        e.currentTarget.style.borderColor = 'var(--border-primary)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <span>{quickAction.icon}</span>
+                      <span>{quickAction.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </AnimatedMessage>
+          );
+        })}
 
         {isLoading && <TypingIndicator />}
 
