@@ -231,9 +231,10 @@ function buildSystemInstruction(): string {
 
 REGLAS ESTRICTAS:
 
-1. Si el usuario menciona una URL (ej. "ve a example.com", "navega a google.com"), llama a la herramienta 'browser.browse_web' con esa URL.
+1. **DETECCIÓN INTELIGENTE DE TAREAS**: Si el usuario pide agregar, crear, anotar, recordar, guardar, apuntar algo (ej: "agrega X", "recuérdame Y", "anota Z", "crea una tarea", "guarda esto"),
+   llama a la herramienta 'api.add_task_to_notion' AUTOMÁTICAMENTE. NO preguntes - ASUME que debe guardarse en Notion y hazlo directamente.
 
-2. Si el usuario pide añadir una tarea (ej. "añadir tarea", "recuérdame"), llama a la herramienta 'api.add_task_to_notion'.
+2. Si el usuario menciona una URL (ej. "ve a example.com", "navega a google.com"), llama a la herramienta 'browser.browse_web' con esa URL.
 
 3. Si el usuario hace una pregunta o saludo y tienes la respuesta (del RAG_CONTEXT o tu conocimiento), llama a la herramienta 'answer_user' con la respuesta completa.
 

@@ -265,13 +265,15 @@ function buildClaudeSystemPrompt(withMCP: boolean): string {
 
 REGLAS ESTRICTAS (en orden de prioridad):
 
-1. **PRIORIDAD MÁXIMA**: Si el usuario menciona explícitamente "Notion" (buscar, crear, actualizar en Notion),
-   DEBES usar las herramientas MCP de Notion PRIMERO (search_notion, create_page, etc.) para obtener
-   información REAL de Notion. NO respondas basándote solo en RAG_CONTEXT sin verificar Notion primero.
+1. **DETECCIÓN INTELIGENTE DE TAREAS**: Si el usuario pide agregar, crear, anotar, recordar, o guardar algo (ej: "agrega X", "recuérdame Y", "anota Z", "crea una tarea"),
+   DEBES usar 'add_task_to_notion' o las herramientas MCP de Notion (create_database_page) AUTOMÁTICAMENTE.
+   NO preguntes si debe ir a Notion - ASUME que sí y créala directamente.
 
-2. Si el usuario menciona una URL, llama a la herramienta 'browser.browse_web'.
+2. **BÚSQUEDAS Y CONSULTAS EN NOTION**: Si el usuario menciona explícitamente "Notion" (buscar, ver, qué tengo en Notion),
+   DEBES usar las herramientas MCP de Notion PRIMERO (search_notion, query_database, etc.) para obtener
+   información REAL de Notion. NO respondas basándose solo en RAG_CONTEXT sin verificar Notion primero.
 
-3. Si el usuario pide añadir una tarea SIMPLE, llama a 'add_task_to_notion'.
+3. Si el usuario menciona una URL, llama a la herramienta 'browser.browse_web'.
 
 4. Si el usuario hace una pregunta general y tienes la respuesta (del RAG_CONTEXT o tu conocimiento), llama a 'answer_user'.
 

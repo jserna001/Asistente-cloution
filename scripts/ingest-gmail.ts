@@ -15,15 +15,87 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // --- CONFIGURACIÓN ---
 // TODO: Reemplaza este placeholder con el ID de usuario real para el que quieres ingestar correos.
-const userId = '575a8929-81b3-4efa-ba4d-31b86b523c74'; 
+const userId = '575a8929-81b3-4efa-ba4d-31b86b523c74';
 // -------------------
+
+/**
+ * FASE 7: Mejoras Gmail RAG
+ * - Extrae cuerpo completo (no solo snippet)
+ * - Detecta metadata (category, is_unread, thread_id, from, date)
+ * - Filtra solo correos no leídos en INBOX
+ * - Agrupa por hilos de conversación
+ */
+
+/**
+ * Extrae el cuerpo completo del correo desde el payload de Gmail
+ */
+function extractFullBody(payload: any): string {
+  try {
+    // Caso 1: Cuerpo directo en payload.body.data
+    if (payload.body?.data) {
+      const decoded = Buffer.from(payload.body.data, 'base64').toString('utf-8');
+      return decoded;
+    }
+
+    // Caso 2: Multipart (buscar recursivamente)
+    if (payload.parts && Array.isArray(payload.parts)) {
+      for (const part of payload.parts) {
+        // Priorizar text/plain sobre text/html
+        if (part.mimeType === 'text/plain' && part.body?.data) {
+          const decoded = Buffer.from(part.body.data, 'base64').toString('utf-8');
+          return decoded;
+        }
+      }
+
+      // Si no hay text/plain, buscar text/html
+      for (const part of payload.parts) {
+        if (part.mimeType === 'text/html' && part.body?.data) {
+          const decoded = Buffer.from(part.body.data, 'base64').toString('utf-8');
+          // Remover tags HTML básicos (muy simple, no perfecto)
+          return decoded.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+        }
+      }
+
+      // Búsqueda recursiva en nested multiparts
+      for (const part of payload.parts) {
+        if (part.parts) {
+          const nestedBody = extractFullBody(part);
+          if (nestedBody) return nestedBody;
+        }
+      }
+    }
+
+    return ''; // No se encontró cuerpo
+  } catch (error) {
+    console.error('Error extrayendo cuerpo del correo:', error);
+    return '';
+  }
+}
+
+/**
+ * Detecta la categoría del correo basado en labels de Gmail
+ */
+function detectCategory(labels: string[] | undefined): string {
+  if (!labels) return 'unknown';
+
+  if (labels.includes('CATEGORY_PERSONAL')) return 'personal';
+  if (labels.includes('CATEGORY_SOCIAL')) return 'social';
+  if (labels.includes('CATEGORY_PROMOTIONS')) return 'promotions';
+  if (labels.includes('CATEGORY_UPDATES')) return 'updates';
+  if (labels.includes('CATEGORY_FORUMS')) return 'forums';
+
+  // Si está en INBOX pero sin categoría específica, es personal
+  if (labels.includes('INBOX')) return 'personal';
+
+  return 'unknown';
+}
 
 /**
  * Worker de ingesta para procesar correos nuevos de Gmail, generar embeddings
  * y guardarlos en Supabase para un sistema RAG.
  */
 async function main() {
-  console.log('--- Iniciando worker de ingesta de Gmail ---');
+  console.log('--- Iniciando worker de ingesta de Gmail (FASE 7) ---');
 
   try {
     // 1. Validar y obtener las variables de entorno.
@@ -106,38 +178,99 @@ async function main() {
       console.log('No hay correos nuevos.');
     } else {
         console.log(`${messagesAdded.length} correos nuevos encontrados. Procesando...`);
+
+        let processedCount = 0;
+        let skippedCount = 0;
+
         // 6. Procesar cada correo nuevo.
         for (const added of messagesAdded) {
             if (!added.message?.id) continue;
 
-            const msg = await gmail.users.messages.get({ userId: 'me', id: added.message.id });
+            const msg = await gmail.users.messages.get({
+              userId: 'me',
+              id: added.message.id,
+              format: 'full' // Obtener payload completo
+            });
 
-            const subjectHeader = msg.data.payload?.headers?.find(h => h.name === 'Subject');
+            const labels = msg.data.labelIds || [];
+            const isUnread = labels.includes('UNREAD');
+            const isInInbox = labels.includes('INBOX');
+            const isSpam = labels.includes('SPAM');
+            const isTrash = labels.includes('TRASH');
+
+            // FILTRO: Solo procesar correos no leídos en INBOX (no spam, no trash)
+            if (!isUnread || !isInInbox || isSpam || isTrash) {
+              skippedCount++;
+              console.log(`⏭️  Saltando correo ${msg.data.id} (leído=${!isUnread}, no-inbox=${!isInInbox}, spam=${isSpam}, trash=${isTrash})`);
+              continue;
+            }
+
+            // Extraer headers
+            const headers = msg.data.payload?.headers || [];
+            const subjectHeader = headers.find(h => h.name === 'Subject');
+            const fromHeader = headers.find(h => h.name === 'From');
+            const dateHeader = headers.find(h => h.name === 'Date');
+
             const subject = subjectHeader?.value || 'Sin Asunto';
+            const fromEmail = fromHeader?.value || 'desconocido';
+            const dateReceived = dateHeader?.value || new Date().toISOString();
+
+            // NUEVO: Extraer cuerpo completo (no solo snippet)
+            const fullBody = extractFullBody(msg.data.payload);
             const snippet = msg.data.snippet || '';
 
-            const textContent = `Asunto: ${subject}\n\n${snippet}`;
+            // Usar cuerpo completo si está disponible, sino fallback a snippet
+            const bodyText = fullBody || snippet;
+
+            // Truncar a 2000 caracteres para embeddings eficientes
+            const truncatedBody = bodyText.slice(0, 2000);
+
+            // Combinar asunto + cuerpo para embedding
+            const textContent = `Asunto: ${subject}\n\nDe: ${fromEmail}\n\n${truncatedBody}`;
+
+            // Detectar categoría
+            const category = detectCategory(labels);
+
+            // NUEVO: Construir metadata
+            const metadata = {
+              category: category,
+              is_unread: isUnread,
+              thread_id: msg.data.threadId || msg.data.id,
+              from: fromEmail,
+              date: dateReceived,
+              labels: labels,
+              has_full_body: !!fullBody,
+              body_length: bodyText.length
+            };
+
+            console.log(`📧 Procesando: [${subject}] de [${fromEmail}] - Categoría: ${category}`);
 
             // 7. Generar embedding.
             const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
             const embeddingResult = await model.embedContent(textContent);
             const embedding = embeddingResult.embedding.values;
 
-            // 8. Guardar en la base de datos.
+            // 8. Guardar en la base de datos con metadata.
             const { error: insertError } = await supabase.from('document_chunks').insert({
                 user_id: userId,
                 source_type: 'gmail',
                 source_id: msg.data.id!,
                 content: textContent,
                 embedding: embedding,
+                metadata: metadata // NUEVO campo
             });
 
             if (insertError) {
-                console.error(`Error al guardar el correo [${subject}] en la DB:`, insertError.message);
+                console.error(`❌ Error al guardar el correo [${subject}] en la DB:`, insertError.message);
             } else {
-                console.log(`✅ Correo [${subject}] procesado y guardado.`);
+                processedCount++;
+                console.log(`✅ Correo [${subject}] procesado y guardado (${bodyText.length} caracteres)`);
             }
         }
+
+        console.log(`\n📊 Resumen de procesamiento:`);
+        console.log(`   ✅ Procesados: ${processedCount}`);
+        console.log(`   ⏭️  Saltados: ${skippedCount} (leídos o fuera de inbox)`);
     }
 
     // 9. Actualizar el `historyId` para la próxima sincronización.
@@ -151,7 +284,7 @@ async function main() {
         throw new Error(`Error al actualizar el estado de sincronización: ${updateSyncError.message}`);
     }
 
-    console.log(`Sincronización completada. Nuevo History ID guardado: ${newHistoryId}`);
+    console.log(`\n✅ Sincronización completada. Nuevo History ID guardado: ${newHistoryId}`);
 
   } catch (error) {
     console.error('❌ Ocurrió un error durante la ingesta de Gmail:', error);
