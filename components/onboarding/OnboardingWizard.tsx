@@ -204,10 +204,9 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
 
       if (!startResult.success) {
         if (startResult.needsNotionAuth) {
-          setError('Necesitas conectar tu cuenta de Notion primero. Redirigiendo...');
-          setTimeout(() => {
-            router.push('/settings?tab=connections');
-          }, 2000);
+          setError('Necesitas conectar tu cuenta de Notion primero.');
+          setInstalling(false);
+          // No redirigir, dejar que el usuario cierre el modal y vaya a settings manualmente
           return;
         }
         throw new Error(startResult.error || 'No se pudo iniciar la instalación');
