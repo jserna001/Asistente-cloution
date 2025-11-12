@@ -125,6 +125,10 @@ function ChatUI() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
 
+  // Estados para smart scroll
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [isNearBottom, setIsNearBottom] = useState(true);
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
@@ -439,9 +443,28 @@ Háblame naturalmente y yo me encargo de Notion 😊
     }
   }, { dependencies: [dailySummary], scope: containerRef });
 
-  // Auto-scroll suave cuando hay nuevos mensajes
+  // Detectar posición del scroll
   useEffect(() => {
-    if (messagesContainerRef.current && messages.length > 0) {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      const threshold = 100; // px desde el bottom
+
+      const nearBottom = distanceFromBottom < threshold;
+      setIsNearBottom(nearBottom);
+      setShowScrollButton(!nearBottom && messages.length > 0);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [messages.length]);
+
+  // Smart Auto-scroll: solo si el usuario está cerca del bottom
+  useEffect(() => {
+    if (messagesContainerRef.current && messages.length > 0 && isNearBottom) {
       const container = messagesContainerRef.current;
       gsap.to(container, {
         scrollTop: container.scrollHeight,
@@ -449,7 +472,21 @@ Háblame naturalmente y yo me encargo de Notion 😊
         ease: 'power2.out',
       });
     }
-  }, [messages]);
+  }, [messages, isNearBottom]);
+
+  // Función para scrollear al final manualmente
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      gsap.to(container, {
+        scrollTop: container.scrollHeight,
+        duration: 0.5,
+        ease: 'power2.out',
+      });
+      setIsNearBottom(true);
+      setShowScrollButton(false);
+    }
+  };
 
   // Animaciones de mensajes ahora se manejan en AnimatedMessage component
   // Animación del typing indicator ahora se maneja en el componente TypingIndicator
@@ -983,6 +1020,46 @@ Háblame naturalmente y yo me encargo de Notion 😊
           }}>
             {authStatus ? <p>{authStatus}</p> : <p>Escribe un mensaje para empezar</p>}
           </div>
+        )}
+
+        {/* Botón flotante "Ir al final" */}
+        {showScrollButton && (
+          <button
+            onClick={scrollToBottom}
+            className="icon-click-bounce"
+            style={{
+              position: 'absolute',
+              bottom: 'var(--space-6)',
+              right: 'var(--space-6)',
+              width: '48px',
+              height: '48px',
+              borderRadius: '50%',
+              border: 'none',
+              backgroundColor: 'var(--accent-blue)',
+              color: 'white',
+              fontSize: 'var(--text-xl)',
+              fontWeight: 'var(--font-bold)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)',
+              transition: 'all var(--transition-fast)',
+              animation: 'fadeIn 0.3s ease',
+              zIndex: 10,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.1)';
+              e.currentTarget.style.boxShadow = '0 6px 16px rgba(14, 165, 233, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(14, 165, 233, 0.3)';
+            }}
+            title="Ir al final"
+          >
+            ↓
+          </button>
         )}
         </div>
 

@@ -53,3 +53,14 @@ a {
   left: 0;
   width: 100%;
 }
+/* Animación para botón scroll to bottom */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
