@@ -115,6 +115,8 @@ import { ToastContainer, type Toast } from '../components/Toast/Toast';
 import { useChatPersistence } from '../hooks/useChatPersistence';
 import { ConnectionStatusIndicator, ConnectionBadge } from '../components/ConnectionStatusIndicator';
 import { useConnectionStatus } from '../hooks/useConnectionStatus';
+import { MessageActionsMenu } from '../components/MessageActionsMenu';
+import { FeedbackModal } from '../components/FeedbackModal';
 
 function ChatUI() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -135,6 +137,10 @@ function ChatUI() {
 
   // Estados para toasts
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Estados para feedback
+  const [feedbackMessage, setFeedbackMessage] = useState<Message | null>(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -733,6 +739,105 @@ Háblame naturalmente y yo me encargo de Notion 😊
     }
   };
 
+  // Función para regenerar respuesta
+  const handleRegenerateResponse = async (aiMessage: Message) => {
+    // Encontrar el mensaje del usuario anterior
+    const aiMessageIndex = messages.findIndex(m => m.id === aiMessage.id);
+    if (aiMessageIndex === -1) return;
+
+    // Buscar el mensaje del usuario anterior
+    const userMessage = messages
+      .slice(0, aiMessageIndex)
+      .reverse()
+      .find(m => m.sender === 'user');
+
+    if (!userMessage) {
+      showToast('No se pudo encontrar el mensaje original', 'error');
+      return;
+    }
+
+    // Reenviar la pregunta del usuario
+    setIsLoading(true);
+
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error || !session) throw new Error('Usuario no autenticado.');
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ query: userMessage.text }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error de API: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Agregar nueva respuesta del AI
+      setMessages((prev) => [...prev, {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        sender: 'ai',
+        text: data.answer,
+        metadata: data.metadata,
+        timestamp: Date.now()
+      }]);
+
+      showToast('Respuesta regenerada exitosamente', 'success', 3000);
+    } catch (error) {
+      console.error('Error regenerando respuesta:', error);
+      showToast('Error al regenerar la respuesta', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Función para manejar feedback
+  const handleFeedback = (aiMessage: Message) => {
+    setFeedbackMessage(aiMessage);
+    setShowFeedbackModal(true);
+  };
+
+  // Función para enviar feedback
+  const handleSubmitFeedback = async (feedback: { rating: 'positive' | 'negative'; comment: string }) => {
+    if (!feedbackMessage) return;
+
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        showToast('Error: usuario no autenticado', 'error');
+        return;
+      }
+
+      // Guardar feedback en Supabase
+      const { error } = await supabase
+        .from('message_feedback')
+        .insert({
+          user_id: user.id,
+          message_id: feedbackMessage.id,
+          message_text: feedbackMessage.text.substring(0, 1000), // Limitar tamaño
+          rating: feedback.rating,
+          comment: feedback.comment || null,
+          metadata: feedbackMessage.metadata || {},
+        });
+
+      if (error) {
+        console.error('Error guardando feedback:', error);
+        showToast('Error al enviar feedback', 'error');
+        return;
+      }
+
+      showToast('¡Gracias por tu feedback!', 'success', 3000);
+    } catch (error) {
+      console.error('Error en handleSubmitFeedback:', error);
+      showToast('Error al enviar feedback', 'error');
+    }
+  };
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push('/login');
@@ -1009,7 +1114,11 @@ Háblame naturalmente y yo me encargo de Notion 😊
                     {(msg.metadata.executionTimeMs / 1000).toFixed(1)}s
                   </span>
                 )}
-                <CopyButton text={msg.text} />
+                <MessageActionsMenu
+                  messageText={msg.text}
+                  onRegenerate={() => handleRegenerateResponse(msg)}
+                  onFeedback={() => handleFeedback(msg)}
+                />
               </div>
             )}
 
@@ -1187,6 +1296,18 @@ Háblame naturalmente y yo me encargo de Notion 😊
 
         {/* Connection Status Indicator */}
         <ConnectionStatusIndicator position="top-right" />
+
+        {/* Feedback Modal */}
+        {showFeedbackModal && feedbackMessage && (
+          <FeedbackModal
+            messageText={feedbackMessage.text}
+            onClose={() => {
+              setShowFeedbackModal(false);
+              setFeedbackMessage(null);
+            }}
+            onSubmit={handleSubmitFeedback}
+          />
+        )}
 
         {/* Onboarding Wizard */}
         {showOnboarding && !checkingOnboarding && (
