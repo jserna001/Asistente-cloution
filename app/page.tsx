@@ -113,6 +113,8 @@ import DailySummaryPanel from '../components/DailySummaryPanel';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { ToastContainer, type Toast } from '../components/Toast/Toast';
 import { useChatPersistence } from '../hooks/useChatPersistence';
+import { ConnectionStatusIndicator, ConnectionBadge } from '../components/ConnectionStatusIndicator';
+import { useConnectionStatus } from '../hooks/useConnectionStatus';
 
 function ChatUI() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -154,6 +156,9 @@ function ChatUI() {
       saveOnExit: true,
     },
   });
+
+  // Connection status tracking
+  const connectionStatus = useConnectionStatus();
 
   // Refs para animaciones GSAP
   const headerRef = useRef<HTMLDivElement>(null);
@@ -791,7 +796,10 @@ Háblame naturalmente y yo me encargo de Notion 😊
             </span>
             Asistente Cloution
           </h1>
-          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            {/* Connection status badge */}
+            <ConnectionBadge />
+
             <button
               onClick={() => router.push('/settings')}
               style={{
@@ -1176,6 +1184,9 @@ Háblame naturalmente y yo me encargo de Notion 😊
 
         {/* Toast Container */}
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+        {/* Connection Status Indicator */}
+        <ConnectionStatusIndicator position="top-right" />
 
         {/* Onboarding Wizard */}
         {showOnboarding && !checkingOnboarding && (
