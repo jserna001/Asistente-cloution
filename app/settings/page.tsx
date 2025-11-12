@@ -21,6 +21,8 @@ import {
   AnimatedIcon,
 } from '../../components/Icons';
 import { useNotifications, useAnimationContext } from '@/lib/animations';
+import ScheduleOptimization from '../../components/ScheduleOptimization';
+import ProductivityTrends from '../../components/ProductivityTrends';
 
 interface UserPreferences {
   daily_summary_enabled: boolean;
@@ -759,6 +761,16 @@ export default function SettingsPage() {
                   </>
                 )}
               </button>
+
+              {/* FASE 3: Smart Schedule Optimization */}
+              <div style={{ marginTop: 'var(--space-8)' }}>
+                <ScheduleOptimization />
+              </div>
+
+              {/* FASE 4: Productivity Trends */}
+              <div style={{ marginTop: 'var(--space-8)' }}>
+                <ProductivityTrends period="week" />
+              </div>
 
             </div>
           </div>
