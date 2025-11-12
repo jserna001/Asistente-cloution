@@ -122,6 +122,7 @@ function ChatUI() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentQuery, setCurrentQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingContext, setLoadingContext] = useState<string | null>(null);
   const [authStatus, setAuthStatus] = useState<string | null>(null);
   const [dailySummary, setDailySummary] = useState<string | null>(null);
   const [summaryDate, setSummaryDate] = useState<string | null>(null);
@@ -573,6 +574,24 @@ Háblame naturalmente y yo me encargo de Notion 😊
     setCurrentQuery('');
     setIsLoading(true);
 
+    // Detectar contexto de la consulta para mostrar mensaje contextual
+    const lowerQuery = userQuery.toLowerCase();
+    if (lowerQuery.includes('email') || lowerQuery.includes('correo') || lowerQuery.includes('gmail')) {
+      setLoadingContext('gmail');
+    } else if (lowerQuery.includes('task') || lowerQuery.includes('tarea') || lowerQuery.includes('notion')) {
+      setLoadingContext('notion');
+    } else if (lowerQuery.includes('calendar') || lowerQuery.includes('calendario') || lowerQuery.includes('evento') || lowerQuery.includes('cita')) {
+      setLoadingContext('calendar');
+    } else if (lowerQuery.includes('search') || lowerQuery.includes('buscar') || lowerQuery.includes('document') || lowerQuery.includes('encuentra')) {
+      setLoadingContext('rag');
+    } else if (lowerQuery.includes('web') || lowerQuery.includes('navega') || lowerQuery.includes('página') || lowerQuery.includes('sitio')) {
+      setLoadingContext('browser');
+    } else if (lowerQuery.includes('resumen') || lowerQuery.includes('summary')) {
+      setLoadingContext('summary');
+    } else {
+      setLoadingContext(null); // Default "Pensando..."
+    }
+
     let accessToken = '';
 
     try {
@@ -602,6 +621,7 @@ Háblame naturalmente y yo me encargo de Notion 😊
       showToast('Sesión expirada. Por favor, inicia sesión de nuevo.', 'error');
 
       setIsLoading(false);
+      setLoadingContext(null);
       return;
     }
 
@@ -663,6 +683,7 @@ Háblame naturalmente y yo me encargo de Notion 😊
       }
     } finally {
       setIsLoading(false);
+      setLoadingContext(null);
     }
   };
 
@@ -677,6 +698,24 @@ Háblame naturalmente y yo me encargo de Notion 😊
         : msg
     ));
     setIsLoading(true);
+
+    // Detectar contexto de la consulta para mostrar mensaje contextual
+    const lowerQuery = failedMessage.text.toLowerCase();
+    if (lowerQuery.includes('email') || lowerQuery.includes('correo') || lowerQuery.includes('gmail')) {
+      setLoadingContext('gmail');
+    } else if (lowerQuery.includes('task') || lowerQuery.includes('tarea') || lowerQuery.includes('notion')) {
+      setLoadingContext('notion');
+    } else if (lowerQuery.includes('calendar') || lowerQuery.includes('calendario') || lowerQuery.includes('evento') || lowerQuery.includes('cita')) {
+      setLoadingContext('calendar');
+    } else if (lowerQuery.includes('search') || lowerQuery.includes('buscar') || lowerQuery.includes('document') || lowerQuery.includes('encuentra')) {
+      setLoadingContext('rag');
+    } else if (lowerQuery.includes('web') || lowerQuery.includes('navega') || lowerQuery.includes('página') || lowerQuery.includes('sitio')) {
+      setLoadingContext('browser');
+    } else if (lowerQuery.includes('resumen') || lowerQuery.includes('summary')) {
+      setLoadingContext('summary');
+    } else {
+      setLoadingContext(null); // Default "Pensando..."
+    }
 
     let accessToken = '';
 
@@ -693,6 +732,7 @@ Háblame naturalmente y yo me encargo de Notion 😊
           : msg
       ));
       setIsLoading(false);
+      setLoadingContext(null);
       return;
     }
 
@@ -736,6 +776,7 @@ Háblame naturalmente y yo me encargo de Notion 😊
       ));
     } finally {
       setIsLoading(false);
+      setLoadingContext(null);
     }
   };
 
@@ -758,6 +799,24 @@ Háblame naturalmente y yo me encargo de Notion 😊
 
     // Reenviar la pregunta del usuario
     setIsLoading(true);
+
+    // Detectar contexto de la consulta para mostrar mensaje contextual
+    const lowerQuery = userMessage.text.toLowerCase();
+    if (lowerQuery.includes('email') || lowerQuery.includes('correo') || lowerQuery.includes('gmail')) {
+      setLoadingContext('gmail');
+    } else if (lowerQuery.includes('task') || lowerQuery.includes('tarea') || lowerQuery.includes('notion')) {
+      setLoadingContext('notion');
+    } else if (lowerQuery.includes('calendar') || lowerQuery.includes('calendario') || lowerQuery.includes('evento') || lowerQuery.includes('cita')) {
+      setLoadingContext('calendar');
+    } else if (lowerQuery.includes('search') || lowerQuery.includes('buscar') || lowerQuery.includes('document') || lowerQuery.includes('encuentra')) {
+      setLoadingContext('rag');
+    } else if (lowerQuery.includes('web') || lowerQuery.includes('navega') || lowerQuery.includes('página') || lowerQuery.includes('sitio')) {
+      setLoadingContext('browser');
+    } else if (lowerQuery.includes('resumen') || lowerQuery.includes('summary')) {
+      setLoadingContext('summary');
+    } else {
+      setLoadingContext(null); // Default "Pensando..."
+    }
 
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
@@ -793,6 +852,7 @@ Háblame naturalmente y yo me encargo de Notion 😊
       showToast('Error al regenerar la respuesta', 'error');
     } finally {
       setIsLoading(false);
+      setLoadingContext(null);
     }
   };
 
@@ -1173,7 +1233,7 @@ Háblame naturalmente y yo me encargo de Notion 😊
           );
         })}
 
-        {isLoading && <TypingIndicator />}
+        {isLoading && <TypingIndicator context={loadingContext || undefined} />}
 
         {messages.length === 0 && !isLoading && (
           <div style={{

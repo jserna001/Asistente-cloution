@@ -11,11 +11,43 @@ import { useStaggerSequence } from '@/lib/animations';
 
 interface TypingIndicatorProps {
   message?: string;
+  context?: string; // Contexto de la acción que está realizando
 }
 
 export const TypingIndicator: React.FC<TypingIndicatorProps> = ({
-  message = 'Pensando...',
+  message,
+  context,
 }) => {
+  // Determinar mensaje contextual basado en el contexto
+  const getContextualMessage = () => {
+    if (message) return message;
+    if (!context) return '🤔 Pensando...';
+
+    const lowerContext = context.toLowerCase();
+
+    if (lowerContext.includes('gmail') || lowerContext.includes('email') || lowerContext.includes('correo')) {
+      return '📧 Buscando en tus correos...';
+    }
+    if (lowerContext.includes('notion') || lowerContext.includes('task') || lowerContext.includes('tarea')) {
+      return '📝 Consultando Notion...';
+    }
+    if (lowerContext.includes('browser') || lowerContext.includes('web') || lowerContext.includes('naveg')) {
+      return '🌐 Navegando en la web...';
+    }
+    if (lowerContext.includes('calendar') || lowerContext.includes('calendario') || lowerContext.includes('evento')) {
+      return '📅 Revisando tu calendario...';
+    }
+    if (lowerContext.includes('rag') || lowerContext.includes('document') || lowerContext.includes('search')) {
+      return '🔍 Buscando en tus documentos...';
+    }
+    if (lowerContext.includes('summary') || lowerContext.includes('resumen')) {
+      return '✨ Generando resumen...';
+    }
+
+    return '🤔 Pensando...';
+  };
+
+  const displayMessage = getContextualMessage();
   const dotsRef = useRef<HTMLElement[]>([]);
 
   // Aplicar secuencia de typing indicator a los dots
@@ -62,7 +94,7 @@ export const TypingIndicator: React.FC<TypingIndicatorProps> = ({
       </div>
 
       {/* Message */}
-      <p style={{ margin: 0, color: 'var(--text-secondary)' }}>{message}</p>
+      <p style={{ margin: 0, color: 'var(--text-secondary)' }}>{displayMessage}</p>
     </div>
   );
 };
