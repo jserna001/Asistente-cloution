@@ -103,6 +103,8 @@ function CopyButton({ text }: { text: string }) {
 import Loader from '../components/Loader';
 import OnboardingWizard from '../components/onboarding/OnboardingWizard';
 import '../components/onboarding/OnboardingWizard.css';
+import DailySummaryPanel from '../components/DailySummaryPanel';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 function ChatUI() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -111,6 +113,7 @@ function ChatUI() {
   const [authStatus, setAuthStatus] = useState<string | null>(null);
   const [dailySummary, setDailySummary] = useState<string | null>(null);
   const [summaryDate, setSummaryDate] = useState<string | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   // Estados para onboarding
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -119,6 +122,9 @@ function ChatUI() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
+
+  // Media query para responsive
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   // Refs para animaciones GSAP
   const headerRef = useRef<HTMLDivElement>(null);
@@ -179,10 +185,12 @@ function ChatUI() {
   }
 
   async function generateDailySummary() {
+    setIsRegenerating(true);
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error || !session) {
         console.error('No se puede generar resumen: usuario no autenticado');
+        setIsRegenerating(false);
         return;
       }
 
@@ -197,12 +205,15 @@ function ChatUI() {
         console.log('Resumen generado exitosamente, recargando...');
         setTimeout(() => {
           loadDailySummary();
+          setIsRegenerating(false);
         }, 2000);
       } else {
         console.error('Error generando resumen:', await response.text());
+        setIsRegenerating(false);
       }
     } catch (error) {
       console.error('Error al solicitar generación de resumen:', error);
+      setIsRegenerating(false);
     }
   }
 
@@ -527,130 +538,131 @@ Háblame naturalmente y yo me encargo de Notion 😊
   return (
     <div ref={containerRef} style={{
       display: 'flex',
-      flexDirection: 'column',
+      flexDirection: isMobile ? 'column' : 'row',
       height: '100vh',
-      maxWidth: '900px',
-      margin: '0 auto',
       backgroundColor: 'var(--bg-primary)',
       color: 'var(--text-primary)',
     }}>
-      {/* Header */}
-      <header ref={headerRef} style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 'var(--space-4) var(--space-6)',
-        borderBottom: '1px solid var(--border-primary)',
-        backgroundColor: 'var(--bg-secondary)',
-      }}>
-        <h1 style={{
-          fontSize: 'var(--text-2xl)',
-          fontWeight: 'var(--font-bold)',
-          background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--space-2)',
-        }}>
-          <span className="icon-breathe" style={{ display: 'flex' }}>
-            <BotIcon size={28} color="var(--accent-purple)" />
-          </span>
-          Asistente Cloution
-        </h1>
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-          <button
-            onClick={() => router.push('/settings')}
-            style={{
-              padding: 'var(--space-2) var(--space-4)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-primary)',
-              backgroundColor: 'var(--bg-tertiary)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              fontSize: 'var(--text-sm)',
-              transition: 'all var(--transition-fast)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-2)',
-            }}
-          >
-            <span className="icon-hover-rotate" style={{ display: 'flex' }}>
-              <SettingsIcon size={16} />
-            </span>
-            Ajustes
-          </button>
-          <button
-            onClick={handleSignOut}
-            style={{
-              padding: 'var(--space-2) var(--space-4)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--accent-red)',
-              backgroundColor: 'transparent',
-              color: 'var(--accent-red)',
-              cursor: 'pointer',
-              fontSize: 'var(--text-sm)',
-              transition: 'all var(--transition-fast)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-2)',
-            }}
-          >
-            <span className="icon-hover-scale" style={{ display: 'flex' }}>
-              <LogOutIcon size={16} />
-            </span>
-            Cerrar Sesión
-          </button>
-        </div>
-      </header>
-
-      {/* Resumen Diario */}
-      {dailySummary && (
-        <div ref={summaryRef} style={{
-          margin: 'var(--space-6)',
-          padding: 'var(--space-6)',
-          borderRadius: 'var(--radius-lg)',
-          background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(139, 92, 246, 0.1))',
-          border: '1px solid var(--border-primary)',
-        }}>
-          {summaryDate && (
-            <div style={{
-              fontSize: 'var(--text-sm)',
-              color: 'var(--text-secondary)',
-              marginBottom: 'var(--space-3)',
-              fontWeight: 'var(--font-medium)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-2)',
-            }}>
-              <span className="icon-fade-rotate" style={{ display: 'flex' }}>
-                <CalendarIcon size={16} />
-              </span>
-              {summaryDate}
-            </div>
-          )}
-          <pre style={{
-            whiteSpace: 'pre-wrap',
-            fontFamily: 'var(--font-display)',
-            fontSize: 'var(--text-sm)',
-            lineHeight: 'var(--leading-relaxed)',
-            margin: 0,
-          }}>
-            {dailySummary}
-          </pre>
-        </div>
+      {/* Desktop Sidebar - Solo mostrar en desktop */}
+      {!isMobile && dailySummary && (
+        <DailySummaryPanel
+          summary={dailySummary}
+          date={summaryDate || new Date().toLocaleDateString('es-ES')}
+          onRegenerate={generateDailySummary}
+          onDismiss={() => {
+            setDailySummary(null);
+            localStorage.setItem('summary_dismissed_date', new Date().toISOString());
+          }}
+          onConfigure={() => router.push('/settings?tab=preferences')}
+          isLoading={isRegenerating}
+        />
       )}
 
-      {/* Mensajes */}
-      <div ref={messagesContainerRef} style={{
-        flex: 1,
-        padding: 'var(--space-6)',
-        overflowY: 'auto',
+      {/* Contenedor principal del chat */}
+      <div style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--space-4)',
+        flex: 1,
+        height: '100vh',
+        maxWidth: isMobile ? '100%' : '900px',
+        margin: isMobile ? '0' : '0 auto',
+        width: '100%',
       }}>
+        {/* Header */}
+        <header ref={headerRef} style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: 'var(--space-4) var(--space-6)',
+          borderBottom: '1px solid var(--border-primary)',
+          backgroundColor: 'var(--bg-secondary)',
+        }}>
+          <h1 style={{
+            fontSize: 'var(--text-2xl)',
+            fontWeight: 'var(--font-bold)',
+            background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-2)',
+          }}>
+            <span className="icon-breathe" style={{ display: 'flex' }}>
+              <BotIcon size={28} color="var(--accent-purple)" />
+            </span>
+            Asistente Cloution
+          </h1>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <button
+              onClick={() => router.push('/settings')}
+              style={{
+                padding: 'var(--space-2) var(--space-4)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-primary)',
+                backgroundColor: 'var(--bg-tertiary)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                fontSize: 'var(--text-sm)',
+                transition: 'all var(--transition-fast)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+              }}
+            >
+              <span className="icon-hover-rotate" style={{ display: 'flex' }}>
+                <SettingsIcon size={16} />
+              </span>
+              Ajustes
+            </button>
+            <button
+              onClick={handleSignOut}
+              style={{
+                padding: 'var(--space-2) var(--space-4)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--accent-red)',
+                backgroundColor: 'transparent',
+                color: 'var(--accent-red)',
+                cursor: 'pointer',
+                fontSize: 'var(--text-sm)',
+                transition: 'all var(--transition-fast)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+              }}
+            >
+              <span className="icon-hover-scale" style={{ display: 'flex' }}>
+                <LogOutIcon size={16} />
+              </span>
+              Cerrar Sesión
+            </button>
+          </div>
+        </header>
+
+        {/* Mobile Summary Card - Solo mostrar en mobile */}
+        {isMobile && dailySummary && (
+          <DailySummaryPanel
+            summary={dailySummary}
+            date={summaryDate || new Date().toLocaleDateString('es-ES')}
+            onRegenerate={generateDailySummary}
+            onDismiss={() => {
+              setDailySummary(null);
+              localStorage.setItem('summary_dismissed_date', new Date().toISOString());
+            }}
+            onConfigure={() => router.push('/settings?tab=preferences')}
+            isLoading={isRegenerating}
+          />
+        )}
+
+        {/* Mensajes */}
+        <div ref={messagesContainerRef} style={{
+          flex: 1,
+          padding: 'var(--space-6)',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-4)',
+        }}>
         {messages.map((msg, index) => (
           <AnimatedMessage key={index} sender={msg.sender}>
             {/* Mensaje */}
@@ -761,90 +773,91 @@ Háblame naturalmente y yo me encargo de Notion 😊
             {authStatus ? <p>{authStatus}</p> : <p>Escribe un mensaje para empezar</p>}
           </div>
         )}
+        </div>
+
+        {/* Input */}
+        <form onSubmit={handleSubmit} style={{
+          padding: 'var(--space-6)',
+          borderTop: '1px solid var(--border-primary)',
+          backgroundColor: 'var(--bg-secondary)',
+          display: 'flex',
+          gap: 'var(--space-3)',
+        }}>
+          <input
+            type="text"
+            value={currentQuery}
+            onChange={(e) => setCurrentQuery(e.target.value)}
+            placeholder="Escribe tu pregunta..."
+            disabled={isLoading}
+            style={{
+              flex: 1,
+              padding: 'var(--space-3)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-primary)',
+              backgroundColor: 'var(--bg-tertiary)',
+              color: 'var(--text-primary)',
+              fontSize: 'var(--text-base)',
+              outline: 'none',
+              transition: 'all var(--transition-fast)',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = 'var(--accent-blue)';
+              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(14, 165, 233, 0.1)';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-primary)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !currentQuery.trim()}
+            className={!isLoading && currentQuery.trim() ? 'icon-click-bounce' : ''}
+            style={{
+              padding: 'var(--space-3) var(--space-6)',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              backgroundColor: isLoading || !currentQuery.trim() ? 'var(--bg-tertiary)' : 'var(--accent-blue)',
+              color: 'white',
+              fontSize: 'var(--text-base)',
+              fontWeight: 'var(--font-semibold)',
+              cursor: isLoading || !currentQuery.trim() ? 'not-allowed' : 'pointer',
+              transition: 'all var(--transition-fast)',
+              opacity: isLoading || !currentQuery.trim() ? 0.5 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
+            }}
+          >
+            {isLoading ? (
+              <SpinnerIcon size={16} />
+            ) : (
+              <span className="icon-hover-scale" style={{ display: 'flex' }}>
+                <SendIcon size={16} />
+              </span>
+            )}
+            Enviar
+          </button>
+        </form>
+
+        {/* Onboarding Wizard */}
+        {showOnboarding && !checkingOnboarding && (
+          <OnboardingWizard
+            onComplete={() => {
+              setShowOnboarding(false);
+              loadDailySummary();
+
+              // Mostrar mensaje de bienvenida después de completar onboarding
+              setTimeout(() => {
+                showWelcomeMessage();
+              }, 500);
+            }}
+            onSkip={() => {
+              setShowOnboarding(false);
+            }}
+          />
+        )}
       </div>
-
-      {/* Input */}
-      <form onSubmit={handleSubmit} style={{
-        padding: 'var(--space-6)',
-        borderTop: '1px solid var(--border-primary)',
-        backgroundColor: 'var(--bg-secondary)',
-        display: 'flex',
-        gap: 'var(--space-3)',
-      }}>
-        <input
-          type="text"
-          value={currentQuery}
-          onChange={(e) => setCurrentQuery(e.target.value)}
-          placeholder="Escribe tu pregunta..."
-          disabled={isLoading}
-          style={{
-            flex: 1,
-            padding: 'var(--space-3)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border-primary)',
-            backgroundColor: 'var(--bg-tertiary)',
-            color: 'var(--text-primary)',
-            fontSize: 'var(--text-base)',
-            outline: 'none',
-            transition: 'all var(--transition-fast)',
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = 'var(--accent-blue)';
-            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(14, 165, 233, 0.1)';
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = 'var(--border-primary)';
-            e.currentTarget.style.boxShadow = 'none';
-          }}
-        />
-        <button
-          type="submit"
-          disabled={isLoading || !currentQuery.trim()}
-          className={!isLoading && currentQuery.trim() ? 'icon-click-bounce' : ''}
-          style={{
-            padding: 'var(--space-3) var(--space-6)',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            backgroundColor: isLoading || !currentQuery.trim() ? 'var(--bg-tertiary)' : 'var(--accent-blue)',
-            color: 'white',
-            fontSize: 'var(--text-base)',
-            fontWeight: 'var(--font-semibold)',
-            cursor: isLoading || !currentQuery.trim() ? 'not-allowed' : 'pointer',
-            transition: 'all var(--transition-fast)',
-            opacity: isLoading || !currentQuery.trim() ? 0.5 : 1,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-2)',
-          }}
-        >
-          {isLoading ? (
-            <SpinnerIcon size={16} />
-          ) : (
-            <span className="icon-hover-scale" style={{ display: 'flex' }}>
-              <SendIcon size={16} />
-            </span>
-          )}
-          Enviar
-        </button>
-      </form>
-
-      {/* Onboarding Wizard */}
-      {showOnboarding && !checkingOnboarding && (
-        <OnboardingWizard
-          onComplete={() => {
-            setShowOnboarding(false);
-            loadDailySummary();
-
-            // Mostrar mensaje de bienvenida después de completar onboarding
-            setTimeout(() => {
-              showWelcomeMessage();
-            }, 500);
-          }}
-          onSkip={() => {
-            setShowOnboarding(false);
-          }}
-        />
-      )}
     </div>
   );
 }

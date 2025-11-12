@@ -26,6 +26,7 @@ import {
   Menu,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   ArrowRight,
   ArrowLeft,
   Globe,
@@ -45,6 +46,8 @@ import {
   ExternalLink,
   Link,
   Clock,
+  Share,
+  RotateCw,
   type LucideIcon
 } from 'lucide-react';
 
@@ -94,10 +97,13 @@ export const XIcon = createIcon(X);
 export const MenuIcon = createIcon(Menu);
 export const ChevronDownIcon = createIcon(ChevronDown);
 export const ChevronRightIcon = createIcon(ChevronRight);
+export const ChevronLeftIcon = createIcon(ChevronLeft);
 export const ArrowRightIcon = createIcon(ArrowRight, 18);
 export const ArrowLeftIcon = createIcon(ArrowLeft, 18);
 export const GlobeIcon = createIcon(Globe, 16);
 export const MoreIcon = createIcon(MoreVertical);
+export const ShareIcon = createIcon(Share);
+export const RefreshIcon = createIcon(RotateCw);
 
 // Data & Content
 export const CalendarIcon = createIcon(Calendar);
