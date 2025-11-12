@@ -112,6 +112,7 @@ import '../components/onboarding/OnboardingWizard.css';
 import DailySummaryPanel from '../components/DailySummaryPanel';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { ToastContainer, type Toast } from '../components/Toast/Toast';
+import { useChatPersistence } from '../hooks/useChatPersistence';
 
 function ChatUI() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -139,6 +140,20 @@ function ChatUI() {
 
   // Media query para responsive
   const isMobile = useMediaQuery('(max-width: 768px)');
+
+  // Persistencia de mensajes (localStorage + Supabase)
+  const { sessionInfo, clearLocalStorage } = useChatPersistence(messages, setMessages, {
+    localStorage: {
+      enabled: true,
+      key: 'chat_messages',
+      maxMessages: 100,
+    },
+    supabase: {
+      enabled: true,
+      minMessages: 4,
+      saveOnExit: true,
+    },
+  });
 
   // Refs para animaciones GSAP
   const headerRef = useRef<HTMLDivElement>(null);
