@@ -111,6 +111,7 @@ import OnboardingWizard from '../components/onboarding/OnboardingWizard';
 import '../components/onboarding/OnboardingWizard.css';
 import DailySummaryPanel from '../components/DailySummaryPanel';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { ToastContainer, type Toast } from '../components/Toast/Toast';
 
 function ChatUI() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -129,6 +130,9 @@ function ChatUI() {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
 
+  // Estados para toasts
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
@@ -141,6 +145,18 @@ function ChatUI() {
   const summaryRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Función para mostrar toast
+  const showToast = (message: string, type: Toast['type'], duration?: number) => {
+    const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newToast: Toast = { id, message, type, duration };
+    setToasts((prev) => [...prev, newToast]);
+  };
+
+  // Función para remover toast
+  const dismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  };
 
   // Cargar resumen diario
   async function loadDailySummary() {
@@ -213,16 +229,19 @@ function ChatUI() {
 
       if (response.ok) {
         console.log('Resumen generado exitosamente, recargando...');
+        showToast('Resumen actualizado exitosamente', 'success');
         setTimeout(() => {
           loadDailySummary();
           setIsRegenerating(false);
         }, 2000);
       } else {
         console.error('Error generando resumen:', await response.text());
+        showToast('Error al generar el resumen. Intenta de nuevo.', 'error');
         setIsRegenerating(false);
       }
     } catch (error) {
       console.error('Error al solicitar generación de resumen:', error);
+      showToast('Error al generar el resumen. Verifica tu conexión.', 'error');
       setIsRegenerating(false);
     }
   }
@@ -552,6 +571,10 @@ Háblame naturalmente y yo me encargo de Notion 😊
         text: 'Error: No pude verificar tu sesión. Por favor, inicia sesión de nuevo.',
         timestamp: Date.now()
       }]);
+
+      // Toast de error
+      showToast('Sesión expirada. Por favor, inicia sesión de nuevo.', 'error');
+
       setIsLoading(false);
       return;
     }
@@ -604,6 +627,14 @@ Háblame naturalmente y yo me encargo de Notion 😊
         text: 'Lo siento, algo salió mal al contactar al asistente.',
         timestamp: Date.now()
       }]);
+
+      // Toast de error
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+        showToast('Sin conexión. Verifica tu internet.', 'error');
+      } else {
+        showToast('Error al contactar al asistente. Intenta de nuevo.', 'error');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -1127,6 +1158,9 @@ Háblame naturalmente y yo me encargo de Notion 😊
             Enviar
           </button>
         </form>
+
+        {/* Toast Container */}
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
         {/* Onboarding Wizard */}
         {showOnboarding && !checkingOnboarding && (
