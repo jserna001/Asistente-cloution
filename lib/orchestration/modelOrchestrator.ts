@@ -76,10 +76,10 @@ export async function orchestrateModelExecution(
   } catch (error: any) {
     console.error(`\n✗ ERROR en ejecución de ${modelConfig.provider}:`, error.message);
 
-    // Fallback: intentar con Gemini Flash si falla Claude
+    // Fallback: intentar con Gemini Pro si falla Claude
     if (modelConfig.provider === 'claude') {
-      console.log('\n⚠️ FALLBACK: Intentando con Gemini Flash 2.0...');
-      answer = await executeGemini('gemini-2.0-flash-exp', context, undefined);
+      console.log('\n⚠️ FALLBACK: Intentando con Gemini 2.5 Pro...');
+      answer = await executeGemini('gemini-2.5-pro', context, undefined);
     } else {
       throw error;
     }
