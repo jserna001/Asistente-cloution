@@ -253,6 +253,39 @@ La verificación de OAuth NO es permanente. Google puede solicitar re-verificaci
 
 ---
 
+## 🐛 Problemas Conocidos
+
+### OAuth Scopes No Funcionan Después de Re-autenticación
+
+**Fecha reportado:** 2025-11-13
+**Estado:** 🔴 Activo
+
+**Síntomas:**
+- Notion funciona correctamente ✅
+- Gmail y Calendar fallan con error de autenticación ❌
+- Credenciales existen en DB con todos los campos completos
+- Durante login, Google muestra "esta aplicacion ya tiene cierto acceso"
+
+**Causa raíz:**
+Cuando solicitas scopes restringidos (gmail.send, calendar.events, tasks) sin verificación de Google, la aplicación puede quedar bloqueada incluso para scopes NO sensibles (gmail.readonly, calendar.readonly).
+
+**Soluciones:**
+
+1. **Solución Inmediata (5 minutos):**
+   - Ir a Google Cloud Console → Pantalla de consentimiento OAuth
+   - Agregar usuario como "Test User" si la app está en modo "Testing"
+   - Revocar acceso en https://myaccount.google.com/permissions
+   - Login nuevamente
+
+2. **Solución Recomendada (2 horas):**
+   - Implementar consentimiento incremental
+   - Solicitar solo scopes NO sensibles al inicio
+   - Ver `OAUTH_TROUBLESHOOTING.md` para detalles
+
+**Documentación completa:** Ver `OAUTH_TROUBLESHOOTING.md`
+
+---
+
 ## 📚 Recursos Adicionales
 
 ### Documentación Oficial
