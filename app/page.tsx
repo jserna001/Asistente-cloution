@@ -16,6 +16,7 @@ import {
   CalendarIcon,
   SendIcon,
   SpinnerIcon,
+  RefreshIcon,
   AnimatedIcon,
   ModelBadge,
 } from '../components/Icons';
@@ -37,12 +38,17 @@ interface QuickAction {
   action: string;
 }
 
+type MessageStatus = 'sending' | 'sent' | 'failed';
+
 interface Message {
+  id: string; // ID único para identificar mensajes
   sender: 'user' | 'ai';
   text: string;
   metadata?: MessageMetadata;
   timestamp: number;
   quickActions?: QuickAction[];
+  status?: MessageStatus; // Estado del mensaje (solo para mensajes de usuario)
+  error?: string; // Mensaje de error (solo cuando status === 'failed')
 }
 
 // Componente de Botón Copiar
@@ -103,28 +109,81 @@ function CopyButton({ text }: { text: string }) {
 import Loader from '../components/Loader';
 import OnboardingWizard from '../components/onboarding/OnboardingWizard';
 import '../components/onboarding/OnboardingWizard.css';
+import DailySummaryPanel from '../components/DailySummaryPanel';
+import { useMediaQuery } from '../hooks/useMediaQuery';
+import { ToastContainer, type Toast } from '../components/Toast/Toast';
+import { useChatPersistence } from '../hooks/useChatPersistence';
+import { ConnectionStatusIndicator, ConnectionBadge } from '../components/ConnectionStatusIndicator';
+import { useConnectionStatus } from '../hooks/useConnectionStatus';
+import { MessageActionsMenu } from '../components/MessageActionsMenu';
+import { FeedbackModal } from '../components/FeedbackModal';
 
 function ChatUI() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentQuery, setCurrentQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingContext, setLoadingContext] = useState<string | null>(null);
   const [authStatus, setAuthStatus] = useState<string | null>(null);
   const [dailySummary, setDailySummary] = useState<string | null>(null);
   const [summaryDate, setSummaryDate] = useState<string | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   // Estados para onboarding
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
 
+  // Estados para smart scroll
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [isNearBottom, setIsNearBottom] = useState(true);
+
+  // Estados para toasts
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Estados para feedback
+  const [feedbackMessage, setFeedbackMessage] = useState<Message | null>(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
+
+  // Media query para responsive
+  const isMobile = useMediaQuery('(max-width: 768px)');
+
+  // Persistencia de mensajes (localStorage + Supabase)
+  const { sessionInfo, clearLocalStorage } = useChatPersistence(messages, setMessages, {
+    localStorage: {
+      enabled: true,
+      key: 'chat_messages',
+      maxMessages: 100,
+    },
+    supabase: {
+      enabled: true,
+      minMessages: 4,
+      saveOnExit: true,
+    },
+  });
+
+  // Connection status tracking
+  const connectionStatus = useConnectionStatus();
 
   // Refs para animaciones GSAP
   const headerRef = useRef<HTMLDivElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Función para mostrar toast
+  const showToast = (message: string, type: Toast['type'], duration?: number) => {
+    const id = `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newToast: Toast = { id, message, type, duration };
+    setToasts((prev) => [...prev, newToast]);
+  };
+
+  // Función para remover toast
+  const dismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  };
 
   // Cargar resumen diario
   async function loadDailySummary() {
@@ -179,10 +238,12 @@ function ChatUI() {
   }
 
   async function generateDailySummary() {
+    setIsRegenerating(true);
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error || !session) {
         console.error('No se puede generar resumen: usuario no autenticado');
+        setIsRegenerating(false);
         return;
       }
 
@@ -195,14 +256,20 @@ function ChatUI() {
 
       if (response.ok) {
         console.log('Resumen generado exitosamente, recargando...');
+        showToast('Resumen actualizado exitosamente', 'success');
         setTimeout(() => {
           loadDailySummary();
+          setIsRegenerating(false);
         }, 2000);
       } else {
         console.error('Error generando resumen:', await response.text());
+        showToast('Error al generar el resumen. Intenta de nuevo.', 'error');
+        setIsRegenerating(false);
       }
     } catch (error) {
       console.error('Error al solicitar generación de resumen:', error);
+      showToast('Error al generar el resumen. Verifica tu conexión.', 'error');
+      setIsRegenerating(false);
     }
   }
 
@@ -377,6 +444,7 @@ Háblame naturalmente y yo me encargo de Notion 😊
 
     // Agregar mensaje del asistente con quick actions
     setMessages([{
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       sender: 'ai',
       text: welcomeMessage,
       timestamp: Date.now(),
@@ -421,9 +489,28 @@ Háblame naturalmente y yo me encargo de Notion 😊
     }
   }, { dependencies: [dailySummary], scope: containerRef });
 
-  // Auto-scroll suave cuando hay nuevos mensajes
+  // Detectar posición del scroll
   useEffect(() => {
-    if (messagesContainerRef.current && messages.length > 0) {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      const threshold = 100; // px desde el bottom
+
+      const nearBottom = distanceFromBottom < threshold;
+      setIsNearBottom(nearBottom);
+      setShowScrollButton(!nearBottom && messages.length > 0);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [messages.length]);
+
+  // Smart Auto-scroll: solo si el usuario está cerca del bottom
+  useEffect(() => {
+    if (messagesContainerRef.current && messages.length > 0 && isNearBottom) {
       const container = messagesContainerRef.current;
       gsap.to(container, {
         scrollTop: container.scrollHeight,
@@ -431,7 +518,21 @@ Háblame naturalmente y yo me encargo de Notion 😊
         ease: 'power2.out',
       });
     }
-  }, [messages]);
+  }, [messages, isNearBottom]);
+
+  // Función para scrollear al final manualmente
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      gsap.to(container, {
+        scrollTop: container.scrollHeight,
+        duration: 0.5,
+        ease: 'power2.out',
+      });
+      setIsNearBottom(true);
+      setShowScrollButton(false);
+    }
+  };
 
   // Animaciones de mensajes ahora se manejan en AnimatedMessage component
   // Animación del typing indicator ahora se maneja en el componente TypingIndicator
@@ -460,13 +561,36 @@ Háblame naturalmente y yo me encargo de Notion 😊
     if (!currentQuery.trim() || isLoading) return;
 
     const userQuery = currentQuery;
+    const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Agregar mensaje del usuario con estado 'sending'
     setMessages((prev) => [...prev, {
+      id: messageId,
       sender: 'user',
       text: userQuery,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      status: 'sending'
     }]);
     setCurrentQuery('');
     setIsLoading(true);
+
+    // Detectar contexto de la consulta para mostrar mensaje contextual
+    const lowerQuery = userQuery.toLowerCase();
+    if (lowerQuery.includes('email') || lowerQuery.includes('correo') || lowerQuery.includes('gmail')) {
+      setLoadingContext('gmail');
+    } else if (lowerQuery.includes('task') || lowerQuery.includes('tarea') || lowerQuery.includes('notion')) {
+      setLoadingContext('notion');
+    } else if (lowerQuery.includes('calendar') || lowerQuery.includes('calendario') || lowerQuery.includes('evento') || lowerQuery.includes('cita')) {
+      setLoadingContext('calendar');
+    } else if (lowerQuery.includes('search') || lowerQuery.includes('buscar') || lowerQuery.includes('document') || lowerQuery.includes('encuentra')) {
+      setLoadingContext('rag');
+    } else if (lowerQuery.includes('web') || lowerQuery.includes('navega') || lowerQuery.includes('página') || lowerQuery.includes('sitio')) {
+      setLoadingContext('browser');
+    } else if (lowerQuery.includes('resumen') || lowerQuery.includes('summary')) {
+      setLoadingContext('summary');
+    } else {
+      setLoadingContext(null); // Default "Pensando..."
+    }
 
     let accessToken = '';
 
@@ -477,12 +601,27 @@ Háblame naturalmente y yo me encargo de Notion 😊
       accessToken = session.access_token;
     } catch (error) {
       console.error('Error obteniendo la sesión:', error);
+
+      // Actualizar mensaje del usuario a 'failed'
+      setMessages((prev) => prev.map(msg =>
+        msg.id === messageId
+          ? { ...msg, status: 'failed' as MessageStatus, error: 'Error de autenticación' }
+          : msg
+      ));
+
+      // Agregar mensaje de error del AI
       setMessages((prev) => [...prev, {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         sender: 'ai',
         text: 'Error: No pude verificar tu sesión. Por favor, inicia sesión de nuevo.',
         timestamp: Date.now()
       }]);
+
+      // Toast de error
+      showToast('Sesión expirada. Por favor, inicia sesión de nuevo.', 'error');
+
       setIsLoading(false);
+      setLoadingContext(null);
       return;
     }
 
@@ -501,7 +640,17 @@ Háblame naturalmente y yo me encargo de Notion 😊
       }
 
       const data = await response.json();
+
+      // Actualizar mensaje del usuario a 'sent'
+      setMessages((prev) => prev.map(msg =>
+        msg.id === messageId
+          ? { ...msg, status: 'sent' as MessageStatus }
+          : msg
+      ));
+
+      // Agregar respuesta del AI
       setMessages((prev) => [...prev, {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         sender: 'ai',
         text: data.answer,
         metadata: data.metadata,
@@ -509,13 +658,243 @@ Háblame naturalmente y yo me encargo de Notion 😊
       }]);
     } catch (error) {
       console.error('Error en la API de chat:', error);
+
+      // Actualizar mensaje del usuario a 'failed'
+      setMessages((prev) => prev.map(msg =>
+        msg.id === messageId
+          ? { ...msg, status: 'failed' as MessageStatus, error: 'Error al enviar el mensaje' }
+          : msg
+      ));
+
+      // Agregar mensaje de error del AI
       setMessages((prev) => [...prev, {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         sender: 'ai',
         text: 'Lo siento, algo salió mal al contactar al asistente.',
         timestamp: Date.now()
       }]);
+
+      // Toast de error
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+        showToast('Sin conexión. Verifica tu internet.', 'error');
+      } else {
+        showToast('Error al contactar al asistente. Intenta de nuevo.', 'error');
+      }
     } finally {
       setIsLoading(false);
+      setLoadingContext(null);
+    }
+  };
+
+  // Función para reintentar un mensaje fallido
+  const handleRetry = async (failedMessage: Message) => {
+    if (failedMessage.sender !== 'user' || failedMessage.status !== 'failed') return;
+
+    // Actualizar estado a 'sending'
+    setMessages((prev) => prev.map(msg =>
+      msg.id === failedMessage.id
+        ? { ...msg, status: 'sending' as MessageStatus, error: undefined }
+        : msg
+    ));
+    setIsLoading(true);
+
+    // Detectar contexto de la consulta para mostrar mensaje contextual
+    const lowerQuery = failedMessage.text.toLowerCase();
+    if (lowerQuery.includes('email') || lowerQuery.includes('correo') || lowerQuery.includes('gmail')) {
+      setLoadingContext('gmail');
+    } else if (lowerQuery.includes('task') || lowerQuery.includes('tarea') || lowerQuery.includes('notion')) {
+      setLoadingContext('notion');
+    } else if (lowerQuery.includes('calendar') || lowerQuery.includes('calendario') || lowerQuery.includes('evento') || lowerQuery.includes('cita')) {
+      setLoadingContext('calendar');
+    } else if (lowerQuery.includes('search') || lowerQuery.includes('buscar') || lowerQuery.includes('document') || lowerQuery.includes('encuentra')) {
+      setLoadingContext('rag');
+    } else if (lowerQuery.includes('web') || lowerQuery.includes('navega') || lowerQuery.includes('página') || lowerQuery.includes('sitio')) {
+      setLoadingContext('browser');
+    } else if (lowerQuery.includes('resumen') || lowerQuery.includes('summary')) {
+      setLoadingContext('summary');
+    } else {
+      setLoadingContext(null); // Default "Pensando..."
+    }
+
+    let accessToken = '';
+
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (!session) throw new Error('Usuario no autenticado.');
+      accessToken = session.access_token;
+    } catch (error) {
+      console.error('Error obteniendo la sesión:', error);
+      setMessages((prev) => prev.map(msg =>
+        msg.id === failedMessage.id
+          ? { ...msg, status: 'failed' as MessageStatus, error: 'Error de autenticación' }
+          : msg
+      ));
+      setIsLoading(false);
+      setLoadingContext(null);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ query: failedMessage.text }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error de API: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Actualizar mensaje a 'sent'
+      setMessages((prev) => prev.map(msg =>
+        msg.id === failedMessage.id
+          ? { ...msg, status: 'sent' as MessageStatus }
+          : msg
+      ));
+
+      // Agregar respuesta del AI
+      setMessages((prev) => [...prev, {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        sender: 'ai',
+        text: data.answer,
+        metadata: data.metadata,
+        timestamp: Date.now()
+      }]);
+    } catch (error) {
+      console.error('Error en la API de chat:', error);
+      setMessages((prev) => prev.map(msg =>
+        msg.id === failedMessage.id
+          ? { ...msg, status: 'failed' as MessageStatus, error: 'Error al enviar el mensaje' }
+          : msg
+      ));
+    } finally {
+      setIsLoading(false);
+      setLoadingContext(null);
+    }
+  };
+
+  // Función para regenerar respuesta
+  const handleRegenerateResponse = async (aiMessage: Message) => {
+    // Encontrar el mensaje del usuario anterior
+    const aiMessageIndex = messages.findIndex(m => m.id === aiMessage.id);
+    if (aiMessageIndex === -1) return;
+
+    // Buscar el mensaje del usuario anterior
+    const userMessage = messages
+      .slice(0, aiMessageIndex)
+      .reverse()
+      .find(m => m.sender === 'user');
+
+    if (!userMessage) {
+      showToast('No se pudo encontrar el mensaje original', 'error');
+      return;
+    }
+
+    // Reenviar la pregunta del usuario
+    setIsLoading(true);
+
+    // Detectar contexto de la consulta para mostrar mensaje contextual
+    const lowerQuery = userMessage.text.toLowerCase();
+    if (lowerQuery.includes('email') || lowerQuery.includes('correo') || lowerQuery.includes('gmail')) {
+      setLoadingContext('gmail');
+    } else if (lowerQuery.includes('task') || lowerQuery.includes('tarea') || lowerQuery.includes('notion')) {
+      setLoadingContext('notion');
+    } else if (lowerQuery.includes('calendar') || lowerQuery.includes('calendario') || lowerQuery.includes('evento') || lowerQuery.includes('cita')) {
+      setLoadingContext('calendar');
+    } else if (lowerQuery.includes('search') || lowerQuery.includes('buscar') || lowerQuery.includes('document') || lowerQuery.includes('encuentra')) {
+      setLoadingContext('rag');
+    } else if (lowerQuery.includes('web') || lowerQuery.includes('navega') || lowerQuery.includes('página') || lowerQuery.includes('sitio')) {
+      setLoadingContext('browser');
+    } else if (lowerQuery.includes('resumen') || lowerQuery.includes('summary')) {
+      setLoadingContext('summary');
+    } else {
+      setLoadingContext(null); // Default "Pensando..."
+    }
+
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error || !session) throw new Error('Usuario no autenticado.');
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ query: userMessage.text }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error de API: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Agregar nueva respuesta del AI
+      setMessages((prev) => [...prev, {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        sender: 'ai',
+        text: data.answer,
+        metadata: data.metadata,
+        timestamp: Date.now()
+      }]);
+
+      showToast('Respuesta regenerada exitosamente', 'success', 3000);
+    } catch (error) {
+      console.error('Error regenerando respuesta:', error);
+      showToast('Error al regenerar la respuesta', 'error');
+    } finally {
+      setIsLoading(false);
+      setLoadingContext(null);
+    }
+  };
+
+  // Función para manejar feedback
+  const handleFeedback = (aiMessage: Message) => {
+    setFeedbackMessage(aiMessage);
+    setShowFeedbackModal(true);
+  };
+
+  // Función para enviar feedback
+  const handleSubmitFeedback = async (feedback: { rating: 'positive' | 'negative'; comment: string }) => {
+    if (!feedbackMessage) return;
+
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        showToast('Error: usuario no autenticado', 'error');
+        return;
+      }
+
+      // Guardar feedback en Supabase
+      const { error } = await supabase
+        .from('message_feedback')
+        .insert({
+          user_id: user.id,
+          message_id: feedbackMessage.id,
+          message_text: feedbackMessage.text.substring(0, 1000), // Limitar tamaño
+          rating: feedback.rating,
+          comment: feedback.comment || null,
+          metadata: feedbackMessage.metadata || {},
+        });
+
+      if (error) {
+        console.error('Error guardando feedback:', error);
+        showToast('Error al enviar feedback', 'error');
+        return;
+      }
+
+      showToast('¡Gracias por tu feedback!', 'success', 3000);
+    } catch (error) {
+      console.error('Error en handleSubmitFeedback:', error);
+      showToast('Error al enviar feedback', 'error');
     }
   };
 
@@ -527,149 +906,248 @@ Háblame naturalmente y yo me encargo de Notion 😊
   return (
     <div ref={containerRef} style={{
       display: 'flex',
-      flexDirection: 'column',
+      flexDirection: isMobile ? 'column' : 'row',
       height: '100vh',
-      maxWidth: '900px',
-      margin: '0 auto',
       backgroundColor: 'var(--bg-primary)',
       color: 'var(--text-primary)',
     }}>
-      {/* Header */}
-      <header ref={headerRef} style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 'var(--space-4) var(--space-6)',
-        borderBottom: '1px solid var(--border-primary)',
-        backgroundColor: 'var(--bg-secondary)',
-      }}>
-        <h1 style={{
-          fontSize: 'var(--text-2xl)',
-          fontWeight: 'var(--font-bold)',
-          background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--space-2)',
-        }}>
-          <span className="icon-breathe" style={{ display: 'flex' }}>
-            <BotIcon size={28} color="var(--accent-purple)" />
-          </span>
-          Asistente Cloution
-        </h1>
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-          <button
-            onClick={() => router.push('/settings')}
-            style={{
-              padding: 'var(--space-2) var(--space-4)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-primary)',
-              backgroundColor: 'var(--bg-tertiary)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              fontSize: 'var(--text-sm)',
-              transition: 'all var(--transition-fast)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-2)',
-            }}
-          >
-            <span className="icon-hover-rotate" style={{ display: 'flex' }}>
-              <SettingsIcon size={16} />
-            </span>
-            Ajustes
-          </button>
-          <button
-            onClick={handleSignOut}
-            style={{
-              padding: 'var(--space-2) var(--space-4)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--accent-red)',
-              backgroundColor: 'transparent',
-              color: 'var(--accent-red)',
-              cursor: 'pointer',
-              fontSize: 'var(--text-sm)',
-              transition: 'all var(--transition-fast)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-2)',
-            }}
-          >
-            <span className="icon-hover-scale" style={{ display: 'flex' }}>
-              <LogOutIcon size={16} />
-            </span>
-            Cerrar Sesión
-          </button>
-        </div>
-      </header>
-
-      {/* Resumen Diario */}
-      {dailySummary && (
-        <div ref={summaryRef} style={{
-          margin: 'var(--space-6)',
-          padding: 'var(--space-6)',
-          borderRadius: 'var(--radius-lg)',
-          background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(139, 92, 246, 0.1))',
-          border: '1px solid var(--border-primary)',
-        }}>
-          {summaryDate && (
-            <div style={{
-              fontSize: 'var(--text-sm)',
-              color: 'var(--text-secondary)',
-              marginBottom: 'var(--space-3)',
-              fontWeight: 'var(--font-medium)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-2)',
-            }}>
-              <span className="icon-fade-rotate" style={{ display: 'flex' }}>
-                <CalendarIcon size={16} />
-              </span>
-              {summaryDate}
-            </div>
-          )}
-          <pre style={{
-            whiteSpace: 'pre-wrap',
-            fontFamily: 'var(--font-display)',
-            fontSize: 'var(--text-sm)',
-            lineHeight: 'var(--leading-relaxed)',
-            margin: 0,
-          }}>
-            {dailySummary}
-          </pre>
-        </div>
+      {/* Desktop Sidebar - Solo mostrar en desktop */}
+      {!isMobile && dailySummary && (
+        <DailySummaryPanel
+          summary={dailySummary}
+          date={summaryDate || new Date().toLocaleDateString('es-ES')}
+          onRegenerate={generateDailySummary}
+          onDismiss={() => {
+            setDailySummary(null);
+            localStorage.setItem('summary_dismissed_date', new Date().toISOString());
+          }}
+          onConfigure={() => router.push('/settings?tab=preferences')}
+          isLoading={isRegenerating}
+        />
       )}
 
-      {/* Mensajes */}
-      <div ref={messagesContainerRef} style={{
-        flex: 1,
-        padding: 'var(--space-6)',
-        overflowY: 'auto',
+      {/* Contenedor principal del chat */}
+      <div style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--space-4)',
+        flex: 1,
+        height: '100vh',
+        maxWidth: isMobile ? '100%' : '900px',
+        margin: isMobile ? '0' : '0 auto',
+        width: '100%',
       }}>
-        {messages.map((msg, index) => (
-          <AnimatedMessage key={index} sender={msg.sender}>
-            {/* Mensaje */}
-            <div className="message-content" style={{
-              padding: 'var(--space-4)',
-              borderRadius: 'var(--radius-lg)',
-              maxWidth: '80%',
-              backgroundColor: msg.sender === 'user' ? 'var(--accent-blue)' : 'var(--bg-secondary)',
-              color: msg.sender === 'user' ? 'white' : 'var(--text-primary)',
-              border: msg.sender === 'ai' ? '1px solid var(--border-primary)' : 'none',
-            }}>
-              <p style={{
-                whiteSpace: 'pre-wrap',
-                margin: 0,
-                lineHeight: 'var(--leading-relaxed)',
+        {/* Header */}
+        <header ref={headerRef} style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: 'var(--space-4) var(--space-6)',
+          borderBottom: '1px solid var(--border-primary)',
+          backgroundColor: 'var(--bg-secondary)',
+        }}>
+          <h1 style={{
+            fontSize: 'var(--text-2xl)',
+            fontWeight: 'var(--font-bold)',
+            background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-2)',
+          }}>
+            <span className="icon-breathe" style={{ display: 'flex' }}>
+              <BotIcon size={28} color="var(--accent-purple)" />
+            </span>
+            Asistente Cloution
+          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            {/* Connection status badge */}
+            <ConnectionBadge />
+
+            <button
+              onClick={() => router.push('/settings')}
+              style={{
+                padding: 'var(--space-2) var(--space-4)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-primary)',
+                backgroundColor: 'var(--bg-tertiary)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                fontSize: 'var(--text-sm)',
+                transition: 'all var(--transition-fast)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+              }}
+            >
+              <span className="icon-hover-rotate" style={{ display: 'flex' }}>
+                <SettingsIcon size={16} />
+              </span>
+              Ajustes
+            </button>
+            <button
+              onClick={handleSignOut}
+              style={{
+                padding: 'var(--space-2) var(--space-4)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--accent-red)',
+                backgroundColor: 'transparent',
+                color: 'var(--accent-red)',
+                cursor: 'pointer',
+                fontSize: 'var(--text-sm)',
+                transition: 'all var(--transition-fast)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+              }}
+            >
+              <span className="icon-hover-scale" style={{ display: 'flex' }}>
+                <LogOutIcon size={16} />
+              </span>
+              Cerrar Sesión
+            </button>
+          </div>
+        </header>
+
+        {/* Mobile Summary Card - Solo mostrar en mobile */}
+        {isMobile && dailySummary && (
+          <DailySummaryPanel
+            summary={dailySummary}
+            date={summaryDate || new Date().toLocaleDateString('es-ES')}
+            onRegenerate={generateDailySummary}
+            onDismiss={() => {
+              setDailySummary(null);
+              localStorage.setItem('summary_dismissed_date', new Date().toISOString());
+            }}
+            onConfigure={() => router.push('/settings?tab=preferences')}
+            isLoading={isRegenerating}
+          />
+        )}
+
+        {/* Mensajes */}
+        <div ref={messagesContainerRef} style={{
+          flex: 1,
+          padding: 'var(--space-6)',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-4)',
+        }}>
+        {messages.map((msg) => {
+          // Determinar estilo según estado del mensaje
+          const getMessageStyle = () => {
+            if (msg.sender === 'ai') {
+              return {
+                backgroundColor: 'var(--bg-secondary)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-primary)',
+                opacity: 1,
+              };
+            }
+
+            // Mensajes de usuario
+            switch (msg.status) {
+              case 'sending':
+                return {
+                  backgroundColor: 'rgba(14, 165, 233, 0.6)',
+                  color: 'white',
+                  border: 'none',
+                  opacity: 0.8,
+                };
+              case 'failed':
+                return {
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--accent-red)',
+                  opacity: 1,
+                };
+              default: // 'sent'
+                return {
+                  backgroundColor: 'var(--accent-blue)',
+                  color: 'white',
+                  border: 'none',
+                  opacity: 1,
+                };
+            }
+          };
+
+          return (
+            <AnimatedMessage key={msg.id} sender={msg.sender}>
+              {/* Mensaje */}
+              <div className="message-content" style={{
+                padding: 'var(--space-4)',
+                borderRadius: 'var(--radius-lg)',
+                maxWidth: '80%',
+                ...getMessageStyle(),
+                transition: 'all 0.3s ease',
               }}>
-                {msg.text}
-              </p>
-            </div>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-2)',
+                }}>
+                  {/* Spinner para mensajes enviándose */}
+                  {msg.status === 'sending' && (
+                    <SpinnerIcon size={14} />
+                  )}
+                  <p style={{
+                    whiteSpace: 'pre-wrap',
+                    margin: 0,
+                    lineHeight: 'var(--leading-relaxed)',
+                    flex: 1,
+                  }}>
+                    {msg.text}
+                  </p>
+                </div>
+
+                {/* Mensaje de error para mensajes fallidos */}
+                {msg.status === 'failed' && msg.error && (
+                  <div style={{
+                    marginTop: 'var(--space-2)',
+                    padding: 'var(--space-2)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--accent-red)',
+                  }}>
+                    {msg.error}
+                  </div>
+                )}
+              </div>
+
+              {/* Botón de reintentar para mensajes fallidos */}
+              {msg.status === 'failed' && msg.sender === 'user' && (
+                <button
+                  onClick={() => handleRetry(msg)}
+                  style={{
+                    marginTop: 'var(--space-2)',
+                    padding: 'var(--space-2) var(--space-3)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--accent-red)',
+                    backgroundColor: 'transparent',
+                    color: 'var(--accent-red)',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: 'var(--font-medium)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-2)',
+                    transition: 'all var(--transition-fast)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--accent-red)';
+                    e.currentTarget.style.color = 'white';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = 'var(--accent-red)';
+                  }}
+                >
+                  <RefreshIcon size={14} />
+                  Reintentar
+                </button>
+              )}
 
             {/* Metadata y acciones (solo para AI) */}
             {msg.sender === 'ai' && msg.metadata && (
@@ -696,61 +1174,66 @@ Háblame naturalmente y yo me encargo de Notion 😊
                     {(msg.metadata.executionTimeMs / 1000).toFixed(1)}s
                   </span>
                 )}
-                <CopyButton text={msg.text} />
+                <MessageActionsMenu
+                  messageText={msg.text}
+                  onRegenerate={() => handleRegenerateResponse(msg)}
+                  onFeedback={() => handleFeedback(msg)}
+                />
               </div>
             )}
 
-            {/* Botones de acción rápida */}
-            {msg.sender === 'ai' && msg.quickActions && msg.quickActions.length > 0 && (
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 'var(--space-2)',
-                marginTop: 'var(--space-3)',
-              }}>
-                {msg.quickActions.map((quickAction, actionIndex) => (
-                  <button
-                    key={actionIndex}
-                    onClick={() => handleQuickAction(quickAction.action)}
-                    style={{
-                      padding: 'var(--space-2) var(--space-4)',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--border-primary)',
-                      backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--text-primary)',
-                      fontSize: 'var(--text-sm)',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--space-2)',
-                      transition: 'all var(--transition-fast)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--accent-blue)';
-                      e.currentTarget.style.color = 'white';
-                      e.currentTarget.style.borderColor = 'var(--accent-blue)';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(14, 165, 233, 0.2)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
-                      e.currentTarget.style.color = 'var(--text-primary)';
-                      e.currentTarget.style.borderColor = 'var(--border-primary)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    <span>{quickAction.icon}</span>
-                    <span>{quickAction.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </AnimatedMessage>
-        ))}
+              {/* Botones de acción rápida */}
+              {msg.sender === 'ai' && msg.quickActions && msg.quickActions.length > 0 && (
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 'var(--space-2)',
+                  marginTop: 'var(--space-3)',
+                }}>
+                  {msg.quickActions.map((quickAction, actionIndex) => (
+                    <button
+                      key={actionIndex}
+                      onClick={() => handleQuickAction(quickAction.action)}
+                      style={{
+                        padding: 'var(--space-2) var(--space-4)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-primary)',
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-2)',
+                        transition: 'all var(--transition-fast)',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--accent-blue)';
+                        e.currentTarget.style.color = 'white';
+                        e.currentTarget.style.borderColor = 'var(--accent-blue)';
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(14, 165, 233, 0.2)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                        e.currentTarget.style.color = 'var(--text-primary)';
+                        e.currentTarget.style.borderColor = 'var(--border-primary)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <span>{quickAction.icon}</span>
+                      <span>{quickAction.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </AnimatedMessage>
+          );
+        })}
 
-        {isLoading && <TypingIndicator />}
+        {isLoading && <TypingIndicator context={loadingContext || undefined} />}
 
         {messages.length === 0 && !isLoading && (
           <div style={{
@@ -761,90 +1244,149 @@ Háblame naturalmente y yo me encargo de Notion 😊
             {authStatus ? <p>{authStatus}</p> : <p>Escribe un mensaje para empezar</p>}
           </div>
         )}
+
+        {/* Botón flotante "Ir al final" */}
+        {showScrollButton && (
+          <button
+            onClick={scrollToBottom}
+            className="icon-click-bounce"
+            style={{
+              position: 'absolute',
+              bottom: 'var(--space-6)',
+              right: 'var(--space-6)',
+              width: '48px',
+              height: '48px',
+              borderRadius: '50%',
+              border: 'none',
+              backgroundColor: 'var(--accent-blue)',
+              color: 'white',
+              fontSize: 'var(--text-xl)',
+              fontWeight: 'var(--font-bold)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)',
+              transition: 'all var(--transition-fast)',
+              animation: 'fadeIn 0.3s ease',
+              zIndex: 10,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.1)';
+              e.currentTarget.style.boxShadow = '0 6px 16px rgba(14, 165, 233, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(14, 165, 233, 0.3)';
+            }}
+            title="Ir al final"
+          >
+            ↓
+          </button>
+        )}
+        </div>
+
+        {/* Input */}
+        <form onSubmit={handleSubmit} style={{
+          padding: 'var(--space-6)',
+          borderTop: '1px solid var(--border-primary)',
+          backgroundColor: 'var(--bg-secondary)',
+          display: 'flex',
+          gap: 'var(--space-3)',
+        }}>
+          <input
+            type="text"
+            value={currentQuery}
+            onChange={(e) => setCurrentQuery(e.target.value)}
+            placeholder="Escribe tu pregunta..."
+            disabled={isLoading}
+            style={{
+              flex: 1,
+              padding: 'var(--space-3)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-primary)',
+              backgroundColor: 'var(--bg-tertiary)',
+              color: 'var(--text-primary)',
+              fontSize: 'var(--text-base)',
+              outline: 'none',
+              transition: 'all var(--transition-fast)',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = 'var(--accent-blue)';
+              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(14, 165, 233, 0.1)';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-primary)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !currentQuery.trim()}
+            className={!isLoading && currentQuery.trim() ? 'icon-click-bounce' : ''}
+            style={{
+              padding: 'var(--space-3) var(--space-6)',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              backgroundColor: isLoading || !currentQuery.trim() ? 'var(--bg-tertiary)' : 'var(--accent-blue)',
+              color: 'white',
+              fontSize: 'var(--text-base)',
+              fontWeight: 'var(--font-semibold)',
+              cursor: isLoading || !currentQuery.trim() ? 'not-allowed' : 'pointer',
+              transition: 'all var(--transition-fast)',
+              opacity: isLoading || !currentQuery.trim() ? 0.5 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
+            }}
+          >
+            {isLoading ? (
+              <SpinnerIcon size={16} />
+            ) : (
+              <span className="icon-hover-scale" style={{ display: 'flex' }}>
+                <SendIcon size={16} />
+              </span>
+            )}
+            Enviar
+          </button>
+        </form>
+
+        {/* Toast Container */}
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+        {/* Connection Status Indicator */}
+        <ConnectionStatusIndicator position="top-right" />
+
+        {/* Feedback Modal */}
+        {showFeedbackModal && feedbackMessage && (
+          <FeedbackModal
+            messageText={feedbackMessage.text}
+            onClose={() => {
+              setShowFeedbackModal(false);
+              setFeedbackMessage(null);
+            }}
+            onSubmit={handleSubmitFeedback}
+          />
+        )}
+
+        {/* Onboarding Wizard */}
+        {showOnboarding && !checkingOnboarding && (
+          <OnboardingWizard
+            onComplete={() => {
+              setShowOnboarding(false);
+              loadDailySummary();
+
+              // Mostrar mensaje de bienvenida después de completar onboarding
+              setTimeout(() => {
+                showWelcomeMessage();
+              }, 500);
+            }}
+            onSkip={() => {
+              setShowOnboarding(false);
+            }}
+          />
+        )}
       </div>
-
-      {/* Input */}
-      <form onSubmit={handleSubmit} style={{
-        padding: 'var(--space-6)',
-        borderTop: '1px solid var(--border-primary)',
-        backgroundColor: 'var(--bg-secondary)',
-        display: 'flex',
-        gap: 'var(--space-3)',
-      }}>
-        <input
-          type="text"
-          value={currentQuery}
-          onChange={(e) => setCurrentQuery(e.target.value)}
-          placeholder="Escribe tu pregunta..."
-          disabled={isLoading}
-          style={{
-            flex: 1,
-            padding: 'var(--space-3)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border-primary)',
-            backgroundColor: 'var(--bg-tertiary)',
-            color: 'var(--text-primary)',
-            fontSize: 'var(--text-base)',
-            outline: 'none',
-            transition: 'all var(--transition-fast)',
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = 'var(--accent-blue)';
-            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(14, 165, 233, 0.1)';
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = 'var(--border-primary)';
-            e.currentTarget.style.boxShadow = 'none';
-          }}
-        />
-        <button
-          type="submit"
-          disabled={isLoading || !currentQuery.trim()}
-          className={!isLoading && currentQuery.trim() ? 'icon-click-bounce' : ''}
-          style={{
-            padding: 'var(--space-3) var(--space-6)',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            backgroundColor: isLoading || !currentQuery.trim() ? 'var(--bg-tertiary)' : 'var(--accent-blue)',
-            color: 'white',
-            fontSize: 'var(--text-base)',
-            fontWeight: 'var(--font-semibold)',
-            cursor: isLoading || !currentQuery.trim() ? 'not-allowed' : 'pointer',
-            transition: 'all var(--transition-fast)',
-            opacity: isLoading || !currentQuery.trim() ? 0.5 : 1,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-2)',
-          }}
-        >
-          {isLoading ? (
-            <SpinnerIcon size={16} />
-          ) : (
-            <span className="icon-hover-scale" style={{ display: 'flex' }}>
-              <SendIcon size={16} />
-            </span>
-          )}
-          Enviar
-        </button>
-      </form>
-
-      {/* Onboarding Wizard */}
-      {showOnboarding && !checkingOnboarding && (
-        <OnboardingWizard
-          onComplete={() => {
-            setShowOnboarding(false);
-            loadDailySummary();
-
-            // Mostrar mensaje de bienvenida después de completar onboarding
-            setTimeout(() => {
-              showWelcomeMessage();
-            }, 500);
-          }}
-          onSkip={() => {
-            setShowOnboarding(false);
-          }}
-        />
-      )}
     </div>
   );
 }
