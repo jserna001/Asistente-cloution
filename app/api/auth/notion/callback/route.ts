@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code');
+  const state = searchParams.get('state') || 'settings'; // Leer el origen del state
 
   if (!code) {
     return NextResponse.redirect(new URL('/settings?status=error&error_message=El código de autorización de Notion no fue proporcionado', req.url));
@@ -98,8 +99,13 @@ export async function GET(req: NextRequest) {
       throw dbError;
     }
 
-    // Paso 4: Redirigir
-    return NextResponse.redirect(new URL('/settings?status=notion_connected', req.url));
+    // Paso 4: Redirigir según el origen
+    const redirectPath = state === 'onboarding'
+      ? '/onboarding?status=notion_connected'
+      : '/settings?status=notion_connected';
+
+    console.log('[NOTION-CALLBACK] Redirecting to:', redirectPath);
+    return NextResponse.redirect(new URL(redirectPath, req.url));
 
   } catch (error) {
     console.error('Error en el callback de Notion:', error);

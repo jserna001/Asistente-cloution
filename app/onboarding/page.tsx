@@ -615,8 +615,8 @@ function Step1Welcome({ formData, setFormData }: StepProps) {
 
 function Step2Integrations({ formData, setFormData }: StepProps) {
   const handleConnectNotion = () => {
-    // Redirigir al flujo OAuth de Notion
-    window.location.href = '/api/auth/notion/redirect';
+    // Redirigir al flujo OAuth de Notion con origen 'onboarding'
+    window.location.href = '/api/auth/notion/redirect?from=onboarding';
   };
 
   return (
