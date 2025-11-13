@@ -28,7 +28,7 @@ export const ModelBadge: React.FC<ModelBadgeProps> = ({
   // Determinar el tipo de modelo
   const getModelType = (modelName: string): ModelType => {
     if (modelName.includes('flash')) return 'flash';
-    if (modelName.includes('gemini-2.5-pro')) return 'pro';
+    if (modelName.includes('gemini') && modelName.includes('thinking')) return 'pro'; // Gemini con razonamiento profundo
     if (modelName.includes('claude')) return 'claude';
     return 'none';
   };
@@ -38,16 +38,16 @@ export const ModelBadge: React.FC<ModelBadgeProps> = ({
 
   // Configuración de icono y label por modelo
   const getModelInfo = (modelName: string) => {
-    if (modelName.includes('flash')) {
+    if (modelName.includes('flash') && !modelName.includes('thinking')) {
       return {
         icon: <ZapIcon size={size} />,
         label: 'Gemini Flash',
         color: animConfig.color,
       };
-    } else if (modelName.includes('gemini-2.5-pro')) {
+    } else if (modelName.includes('gemini') && modelName.includes('thinking')) {
       return {
         icon: <BrainIcon size={size} />,
-        label: 'Gemini Pro',
+        label: 'Gemini Thinking',
         color: animConfig.color,
       };
     } else if (modelName.includes('claude')) {
