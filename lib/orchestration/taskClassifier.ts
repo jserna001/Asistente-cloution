@@ -18,16 +18,87 @@ function getClassifierModel() {
 }
 
 /**
- * Keywords para detectar operaciones de Notion
+ * Keywords para detectar operaciones de Google Services
+ * Separados por servicio para enrutamiento granular y optimización de costos
+ */
+
+// Gmail Keywords
+const GMAIL_KEYWORDS = [
+  'correo', 'correos', 'email', 'emails', 'mail', 'mensaje', 'mensajes',
+  'hilo', 'hilos', 'thread', 'threads', 'bandeja', 'inbox',
+  'message', 'messages', 'newsletter', 'gmail'
+];
+
+const GMAIL_ACTIONS = [
+  'enviar', 'envía', 'envia', 'manda', 'mandar', 'send',
+  'buscar', 'busca', 'search', 'encontrar', 'encuentra', 'find',
+  'leer', 'lee', 'read', 'revisar', 'revisa', 'check',
+  'redactar', 'redacta', 'draft', 'borrador',
+  'responder', 'responde', 'reply', 'contestar', 'contesta',
+  'reenviar', 'reenvía', 'reenvia', 'forward',
+  'etiquetar', 'etiqueta', 'label', 'archivar', 'archiva', 'archive'
+];
+
+// Calendar Keywords
+const CALENDAR_KEYWORDS = [
+  'evento', 'eventos', 'event', 'events',
+  'reunión', 'reuniones', 'reunion', 'reuniones', 'meeting', 'meetings',
+  'cita', 'citas', 'appointment', 'appointments',
+  'calendario', 'calendar', 'agenda', 'schedule'
+];
+
+const CALENDAR_ACTIONS = [
+  'crear', 'crea', 'create', 'creame',
+  'agendar', 'agenda', 'programar', 'programa', 'schedule',
+  'listar', 'lista', 'list', 'mostrar', 'muestra', 'show',
+  'buscar', 'busca', 'search', 'encontrar', 'encuentra', 'find',
+  'cancelar', 'cancela', 'cancel', 'borrar', 'borra', 'delete',
+  'actualizar', 'actualiza', 'update', 'modificar', 'modifica', 'modify',
+  'ver', 'check', 'qué tengo', 'que tengo', 'what do i have'
+];
+
+// Google Tasks Keywords (tareas simples, no Notion)
+const TASKS_KEYWORDS = [
+  'recordatorio', 'recordatorios', 'reminder', 'reminders',
+  'pendiente', 'pendientes', 'to-do', 'todo'
+];
+
+const TASKS_ACTIONS = [
+  'crear', 'crea', 'create',
+  'agregar', 'agrega', 'añadir', 'añade', 'add',
+  'anotar', 'anota',
+  'listar', 'lista', 'list',
+  'mostrar', 'muestra', 'show',
+  'completar', 'completa', 'complete', 'marcar', 'marca', 'mark'
+];
+
+// Google Drive Keywords
+const DRIVE_KEYWORDS = [
+  'documento', 'documentos', 'doc', 'docs', 'document', 'documents',
+  'hoja de cálculo', 'hoja de calculo', 'sheet', 'sheets', 'spreadsheet',
+  'presentación', 'presentacion', 'slide', 'slides', 'presentation',
+  'archivo', 'archivos', 'file', 'files',
+  'google doc', 'google docs', 'google sheet', 'google sheets'
+];
+
+const DRIVE_ACTIONS = [
+  'crear', 'crea', 'create',
+  'nuevo', 'nueva', 'new',
+  'buscar', 'busca', 'search',
+  'encontrar', 'encuentra', 'find'
+];
+
+/**
+ * Keywords para detectar operaciones de Notion (refinadas)
+ * Notion maneja tareas COMPLEJAS con contexto de proyecto
  */
 const NOTION_KEYWORDS = [
   'notion',
-  'tarea', 'tareas', 'task', 'tasks', 'todo', 'todos',
+  'proyecto', 'proyectos', 'project', 'projects',
   'nota', 'notas', 'note', 'notes',
   'página', 'pagina', 'page', 'pages',
   'idea', 'ideas',
-  'recordatorio', 'recordatorios', 'reminder', 'reminders',
-  'entrada', 'entradas', 'entry', 'entries',
+  'wiki', 'base de conocimiento', 'knowledge base',
   'database', 'base de datos', 'bd'
 ];
 
@@ -43,6 +114,74 @@ const NOTION_ACTIONS = [
 ];
 
 /**
+ * Función de ayuda para detectar si una query tiene keywords y acciones
+ */
+function hasKeywords(query: string, actions: string[], keywords: string[]): boolean {
+  const lowerQuery = query.toLowerCase();
+
+  const hasAction = actions.some(action => {
+    const regex = new RegExp(`\\b${action}\\b`, 'i');
+    return regex.test(lowerQuery);
+  });
+
+  const hasKeyword = keywords.some(keyword => {
+    const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+    return regex.test(lowerQuery);
+  });
+
+  return hasAction && hasKeyword;
+}
+
+/**
+ * Detecta operaciones de Gmail
+ */
+function detectGmailOperation(query: string): boolean {
+  const lowerQuery = query.toLowerCase();
+
+  // Si menciona explícitamente "gmail"
+  if (lowerQuery.includes('gmail')) {
+    return true;
+  }
+
+  return hasKeywords(query, GMAIL_ACTIONS, GMAIL_KEYWORDS);
+}
+
+/**
+ * Detecta operaciones de Calendar
+ */
+function detectCalendarOperation(query: string): boolean {
+  const lowerQuery = query.toLowerCase();
+
+  // Si menciona explícitamente "calendar" o "calendario"
+  if (lowerQuery.includes('calendar') || lowerQuery.includes('calendario')) {
+    return true;
+  }
+
+  return hasKeywords(query, CALENDAR_ACTIONS, CALENDAR_KEYWORDS);
+}
+
+/**
+ * Detecta operaciones de Google Tasks (tareas simples)
+ */
+function detectTasksOperation(query: string): boolean {
+  return hasKeywords(query, TASKS_ACTIONS, TASKS_KEYWORDS);
+}
+
+/**
+ * Detecta operaciones de Google Drive
+ */
+function detectDriveOperation(query: string): boolean {
+  const lowerQuery = query.toLowerCase();
+
+  // Si menciona explícitamente "google doc", "google sheet", etc.
+  if (lowerQuery.includes('google doc') || lowerQuery.includes('google sheet') || lowerQuery.includes('google slide')) {
+    return true;
+  }
+
+  return hasKeywords(query, DRIVE_ACTIONS, DRIVE_KEYWORDS);
+}
+
+/**
  * Detecta si una query es una operación de Notion basándose en keywords
  */
 function detectNotionOperation(query: string): boolean {
@@ -54,18 +193,7 @@ function detectNotionOperation(query: string): boolean {
   }
 
   // 2. Si combina ACCIÓN + KEYWORD de Notion → probablemente es NOTION_MCP
-  const hasNotionAction = NOTION_ACTIONS.some(action => {
-    // Buscar la palabra completa (word boundary)
-    const regex = new RegExp(`\\b${action}\\b`, 'i');
-    return regex.test(lowerQuery);
-  });
-
-  const hasNotionKeyword = NOTION_KEYWORDS.some(keyword => {
-    const regex = new RegExp(`\\b${keyword}\\b`, 'i');
-    return regex.test(lowerQuery);
-  });
-
-  if (hasNotionAction && hasNotionKeyword) {
+  if (hasKeywords(query, NOTION_ACTIONS, NOTION_KEYWORDS)) {
     console.log(`[CLASSIFIER] 🎯 Detección de Notion: Acción + Keyword encontrados`);
     return true;
   }
@@ -75,16 +203,49 @@ function detectNotionOperation(query: string): boolean {
 
 /**
  * Clasifica una consulta del usuario en un tipo de tarea
+ * Orden de precedencia según la arquitectura de investigación:
+ * 1. Google Services explícitos (Gmail, Calendar, Drive)
+ * 2. Notion explícito
+ * 3. Google Tasks (tareas simples sin contexto)
+ * 4. Browser, Complex
+ * 5. Default (Simple/RAG)
  */
 export async function classifyTask(query: string, ragContext: string): Promise<TaskType> {
   const startTime = Date.now();
 
-  // PRE-CLASIFICACIÓN: Detectar operaciones de Notion con reglas
+  // --- FASE 1: Google Services Explícitos (Alta Precedencia) ---
+  // Estos se comprueban primero porque "correo" y "evento" son raramente ambiguos
+  if (detectGmailOperation(query)) {
+    console.log(`[CLASSIFIER] ⚡ Pre-clasificación: Query detectada como GMAIL (keywords)`);
+    return 'GMAIL';
+  }
+
+  if (detectCalendarOperation(query)) {
+    console.log(`[CLASSIFIER] ⚡ Pre-clasificación: Query detectada como CALENDAR (keywords)`);
+    return 'CALENDAR';
+  }
+
+  if (detectDriveOperation(query)) {
+    console.log(`[CLASSIFIER] ⚡ Pre-clasificación: Query detectada como GOOGLE_DRIVE (keywords)`);
+    return 'GOOGLE_DRIVE';
+  }
+
+  // --- FASE 2: Notion Explícito (Alta Precedencia) ---
+  // Comprobar Notion antes de tareas genéricas es crucial
   if (detectNotionOperation(query)) {
     console.log(`[CLASSIFIER] ⚡ Pre-clasificación: Query detectada como NOTION_MCP (keywords)`);
     return 'NOTION_MCP';
   }
 
+  // --- FASE 3: Google Tasks (Resolución de Ambigüedad) ---
+  // Si no es una tarea de Notion (ej. "tarea en el proyecto X"),
+  // se asume que es una tarea simple de Google Tasks
+  if (detectTasksOperation(query)) {
+    console.log(`[CLASSIFIER] ⚡ Pre-clasificación: Query detectada como GOOGLE_TASKS (keywords)`);
+    return 'GOOGLE_TASKS';
+  }
+
+  // --- FASE 4: Clasificación por LLM (fallback para casos ambiguos) ---
   const classificationPrompt = `Eres un clasificador de intenciones. Analiza la solicitud del usuario y clasifícala en UNA categoría.
 
 CATEGORÍAS DISPONIBLES:
@@ -92,33 +253,44 @@ CATEGORÍAS DISPONIBLES:
 1. SIMPLE: Saludos, conversación casual, preguntas generales que NO requieren herramientas
    Ejemplos: "Hola", "¿Cómo estás?", "Gracias", "¿Qué puedes hacer?"
 
-2. RAG: Preguntas sobre información personal del usuario (correos, calendario) que ya está en memoria
-   Ejemplos: "¿Hay correos importantes?", "¿Qué tengo en mi agenda de hoy?"
+2. RAG: Preguntas sobre información personal del usuario que ya está en memoria
+   Ejemplos: "¿Hay algo importante en mi bandeja?", "Resumen de mis tareas"
    NOTA: Si el RAG_CONTEXT contiene información relevante, probablemente es RAG
 
 3. BROWSER: Navegar web, interactuar con páginas, hacer búsquedas en internet
    Ejemplos: "Navega a google.com", "Busca información sobre...", "Abre la página de..."
 
-4. NOTION_MCP: CUALQUIER operación relacionada con tareas, notas, páginas, ideas, recordatorios
-   Ejemplos:
-   - "Crea una tarea: Comprar leche"
-   - "Agregar nota sobre ideas del día"
-   - "Nueva página para proyecto X"
-   - "Guardar esta idea en mis notas"
-   - "Busca en mis tareas pendientes"
-   - "Lista mis recordatorios"
-   REGLA CRÍTICA: Si menciona crear/agregar/guardar/buscar + (tarea/nota/página/idea) → NOTION_MCP
+4. GMAIL: Operaciones de correo electrónico
+   Ejemplos: "Envía un correo a Juan", "Busca correos de la semana pasada", "Lee mi último email"
 
-5. COMPLEX: Tareas que requieren múltiples herramientas o razonamiento profundo
-   Ejemplos: "Busca información en web Y añádela a Notion", "Revisa mis correos Y crea tareas"
+5. CALENDAR: Operaciones de calendario y eventos
+   Ejemplos: "Crea un evento mañana", "¿Qué tengo en mi agenda?", "Cancela mi reunión de las 3pm"
+
+6. GOOGLE_TASKS: Tareas simples sin contexto de proyecto
+   Ejemplos: "Recuérdame comprar leche", "Añade tarea: llamar al dentista"
+
+7. GOOGLE_DRIVE: Crear documentos de Google
+   Ejemplos: "Crea un Google Doc para mis notas", "Nueva hoja de cálculo de presupuesto"
+
+8. NOTION_MCP: Operaciones complejas de Notion (proyectos, notas elaboradas, bases de datos)
+   Ejemplos:
+   - "Añadir tarea al proyecto X"
+   - "Guardar nota en mi base de conocimiento"
+   - "Busca en mis páginas de Notion"
+
+9. COMPLEX: Tareas que requieren múltiples herramientas o razonamiento profundo
+   Ejemplos: "Busca información en web Y añádela a Notion"
 
 REGLAS IMPORTANTES (en orden de prioridad):
-1. Si la query contiene "Notion" (case-insensitive), SIEMPRE clasifica como NOTION_MCP
-2. Si menciona crear/agregar/guardar + (tarea/nota/página/idea), clasifica como NOTION_MCP
-3. Si menciona URL o "navega" o "busca en internet", clasifica como BROWSER
-4. Si pregunta por información que está en RAG_CONTEXT, clasifica como RAG
-5. Solo usa COMPLEX si claramente necesita 2+ herramientas DIFERENTES
-6. Solo usa SIMPLE si es conversación casual SIN requerir acciones
+1. Si menciona "correo/email/gmail" + acción → GMAIL
+2. Si menciona "evento/reunión/agenda/calendario" + acción → CALENDAR
+3. Si menciona "Google Doc/Sheet/Slide" → GOOGLE_DRIVE
+4. Si menciona "recordatorio/to-do" simple → GOOGLE_TASKS
+5. Si menciona "Notion" o "proyecto" o contexto complejo → NOTION_MCP
+6. Si menciona URL o "navega" → BROWSER
+7. Si pregunta por información en RAG_CONTEXT → RAG
+8. Solo usa COMPLEX si claramente necesita 2+ herramientas DIFERENTES
+9. Solo usa SIMPLE si es conversación casual SIN requerir acciones
 
 RAG_CONTEXT disponible:
 ${ragContext ? 'SÍ - hay información relevante en memoria' : 'NO - no hay información relevante'}
@@ -126,23 +298,35 @@ ${ragContext ? 'SÍ - hay información relevante en memoria' : 'NO - no hay info
 Consulta del usuario:
 "${query}"
 
-Responde SOLO con UNA palabra (la categoría): SIMPLE, RAG, BROWSER, NOTION_MCP o COMPLEX`;
+Responde SOLO con UNA palabra (la categoría): SIMPLE, RAG, BROWSER, GMAIL, CALENDAR, GOOGLE_TASKS, GOOGLE_DRIVE, NOTION_MCP o COMPLEX`;
 
   try {
     const classifierModel = getClassifierModel();
     const result = await classifierModel.generateContent(classificationPrompt);
     const classification = result.response.text().trim().toUpperCase();
 
-    // Validar que sea una categoría válida
-    const validTypes: TaskType[] = ['SIMPLE', 'RAG', 'BROWSER', 'NOTION_MCP', 'COMPLEX'];
+    // Validar que sea una categoría válida (actualizado con nuevos TaskTypes)
+    const validTypes: TaskType[] = [
+      'SIMPLE', 'RAG', 'BROWSER',
+      'GMAIL', 'CALENDAR', 'GOOGLE_TASKS', 'GOOGLE_DRIVE',
+      'NOTION_MCP', 'COMPLEX'
+    ];
     let taskType = validTypes.includes(classification as TaskType)
       ? (classification as TaskType)
       : 'SIMPLE'; // Fallback seguro
 
-    // OVERRIDE FORZADO: Si la query contiene "Notion", SIEMPRE usar NOTION_MCP
-    if (query.toLowerCase().includes('notion')) {
+    // OVERRIDES FORZADOS (asegurar clasificación correcta)
+    const lowerQuery = query.toLowerCase();
+
+    if (lowerQuery.includes('gmail')) {
+      taskType = 'GMAIL';
+      console.log(`[CLASSIFIER] ⚠️ Override aplicado: Query contiene "gmail" → GMAIL`);
+    } else if (lowerQuery.includes('calendar') || lowerQuery.includes('calendario')) {
+      taskType = 'CALENDAR';
+      console.log(`[CLASSIFIER] ⚠️ Override aplicado: Query contiene "calendar/calendario" → CALENDAR`);
+    } else if (lowerQuery.includes('notion')) {
       taskType = 'NOTION_MCP';
-      console.log(`[CLASSIFIER] ⚠️ Override aplicado: Query contiene "Notion" → NOTION_MCP`);
+      console.log(`[CLASSIFIER] ⚠️ Override aplicado: Query contiene "notion" → NOTION_MCP`);
     }
 
     const duration = Date.now() - startTime;
@@ -152,10 +336,19 @@ Responde SOLO con UNA palabra (la categoría): SIMPLE, RAG, BROWSER, NOTION_MCP 
 
   } catch (error: any) {
     console.error('[CLASSIFIER] Error clasificando tarea:', error.message);
-    // En caso de error, verificar si contiene "Notion"
-    if (query.toLowerCase().includes('notion')) {
+
+    // En caso de error, aplicar reglas de fallback
+    const lowerQuery = query.toLowerCase();
+    if (lowerQuery.includes('gmail') || lowerQuery.includes('correo') || lowerQuery.includes('email')) {
+      return 'GMAIL';
+    }
+    if (lowerQuery.includes('calendar') || lowerQuery.includes('evento') || lowerQuery.includes('reunión')) {
+      return 'CALENDAR';
+    }
+    if (lowerQuery.includes('notion')) {
       return 'NOTION_MCP';
     }
+
     return 'SIMPLE';
   }
 }

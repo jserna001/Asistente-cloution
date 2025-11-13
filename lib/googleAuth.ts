@@ -2,11 +2,30 @@ import { google, Auth } from 'googleapis';
 import { decryptToken } from './encryption';
 
 // Scopes requeridos para la aplicación
+// ⚠️ NOTA: Los scopes de escritura (send, compose, calendar.events, tasks, drive.file)
+// requieren verificación de Google. Ver GOOGLE_VERIFICATION.md para más detalles.
 export const requiredScopes = [
-  'https://www.googleapis.com/auth/calendar.readonly',
-  'https://www.googleapis.com/auth/gmail.readonly',
+  // User Info (siempre requerido)
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
+
+  // Gmail - Lectura y escritura
+  'https://www.googleapis.com/auth/gmail.readonly',      // Lectura de correos
+  'https://www.googleapis.com/auth/gmail.send',          // Enviar correos (REQUIERE VERIFICACIÓN)
+  'https://www.googleapis.com/auth/gmail.compose',       // Crear/modificar borradores (REQUIERE VERIFICACIÓN)
+
+  // Calendar - Lectura y escritura
+  'https://www.googleapis.com/auth/calendar',            // Acceso completo al calendario (REQUIERE VERIFICACIÓN)
+  'https://www.googleapis.com/auth/calendar.events',     // Crear/modificar/eliminar eventos (REQUIERE VERIFICACIÓN)
+
+  // Google Tasks
+  'https://www.googleapis.com/auth/tasks',               // Acceso completo a tareas (REQUIERE VERIFICACIÓN)
+
+  // Google Contacts (para búsqueda de emails)
+  'https://www.googleapis.com/auth/contacts.readonly',   // Lectura de contactos
+
+  // Google Drive (solo archivos creados por la app)
+  'https://www.googleapis.com/auth/drive.file',          // Crear/gestionar archivos de la app (NO SENSIBLE)
 ];
 
 // Función sobrecargada para soportar ambos casos de uso

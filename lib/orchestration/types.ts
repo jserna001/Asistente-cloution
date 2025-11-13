@@ -7,6 +7,10 @@ export type TaskType =
   | 'SIMPLE'         // Saludos, conversación casual
   | 'RAG'            // Búsquedas en memoria (tareas, correos, notas)
   | 'BROWSER'        // Navegación web y automatización
+  | 'GMAIL'          // Operaciones de Gmail (enviar, buscar, leer correos)
+  | 'CALENDAR'       // Operaciones de Google Calendar (crear, listar, buscar eventos)
+  | 'GOOGLE_TASKS'   // Tareas simples de Google Tasks (crear, listar tareas)
+  | 'GOOGLE_DRIVE'   // Operaciones de Google Drive (crear documentos)
   | 'NOTION_MCP'     // Operaciones complejas de Notion vía MCP
   | 'COMPLEX';       // Tareas multi-herramienta o razonamiento profundo
 
@@ -18,10 +22,14 @@ export interface ModelConfig {
 
 // Mapeo de tipos de tarea a configuración de modelo
 export const TASK_MODEL_MAPPING: Record<TaskType, ModelConfig> = {
-  SIMPLE: { provider: 'gemini', model: 'gemini-2.0-flash-exp' },
+  SIMPLE: { provider: 'gemini', model: 'gemini-2.5-flash' },
   RAG: { provider: 'gemini', model: 'gemini-2.5-pro' },
   BROWSER: { provider: 'gemini', model: 'gemini-2.5-pro' },
-  NOTION_MCP: { provider: 'claude', model: 'claude-sonnet-4-20250514' },
+  GMAIL: { provider: 'gemini', model: 'gemini-2.5-flash' },            // Google Services → Gemini Flash (ahorro de costos)
+  CALENDAR: { provider: 'gemini', model: 'gemini-2.5-flash' },
+  GOOGLE_TASKS: { provider: 'gemini', model: 'gemini-2.5-flash' },
+  GOOGLE_DRIVE: { provider: 'gemini', model: 'gemini-2.5-flash' },
+  NOTION_MCP: { provider: 'claude', model: 'claude-sonnet-4-20250514' },  // Notion → Claude Sonnet (alta complejidad)
   COMPLEX: { provider: 'claude', model: 'claude-sonnet-4-20250514' }
 };
 
