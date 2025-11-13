@@ -48,6 +48,15 @@ import {
   Clock,
   Share,
   RotateCw,
+  PartyPopper,
+  Rocket,
+  Palette,
+  Target,
+  GraduationCap,
+  Briefcase,
+  TrendingUp,
+  Laptop,
+  BookOpen,
   type LucideIcon
 } from 'lucide-react';
 
@@ -141,6 +150,17 @@ export const SpinnerIcon = ({ size = 20, ...props }: IconProps) => (
     style={{ animation: 'spin 1s linear infinite' }}
   />
 );
+
+// Onboarding & Features
+export const PartyIcon = createIcon(PartyPopper);
+export const RocketIcon = createIcon(Rocket);
+export const PaletteIcon = createIcon(Palette);
+export const TargetIcon = createIcon(Target);
+export const GraduationCapIcon = createIcon(GraduationCap);
+export const BriefcaseIcon = createIcon(Briefcase);
+export const TrendingUpIcon = createIcon(TrendingUp);
+export const LaptopIcon = createIcon(Laptop);
+export const BookOpenIcon = createIcon(BookOpen);
 
 // Icono de modelo basado en el nombre
 export const ModelIcon = ({ model, size = 16 }: { model: string; size?: number }) => {

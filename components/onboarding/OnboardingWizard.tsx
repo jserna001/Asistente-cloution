@@ -16,6 +16,19 @@
 import { useState, useEffect } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
+import {
+  PartyIcon,
+  RocketIcon,
+  PaletteIcon,
+  TargetIcon,
+  CheckIcon,
+  SparklesIcon,
+  CheckCircleIcon,
+  BotIcon,
+  MessageIcon,
+  ArrowRightIcon,
+  ArrowLeftIcon
+} from '../Icons';
 
 // =====================================================
 // TIPOS
@@ -343,7 +356,9 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
           {/* PASO 1: Selección de plantilla */}
           {step === 1 && (
             <div className="step-container">
-              <h1 className="onboarding-title">🎉 ¡Bienvenido a tu Asistente IA!</h1>
+              <h1 className="onboarding-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', justifyContent: 'center' }}>
+                <PartyIcon size={32} /> ¡Bienvenido a tu Asistente IA!
+              </h1>
               <p className="onboarding-subtitle">
                 Vamos a configurar tu workspace perfecto en Notion.
                 Selecciona la plantilla que mejor se ajuste a ti:
@@ -371,7 +386,9 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                         <small>Para: {template.target_audience.join(', ')}</small>
                       </div>
                       {selectedTemplate?.id === template.id && (
-                        <div className="selected-badge">✓ Seleccionado</div>
+                        <div className="selected-badge" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
+                          <CheckIcon size={16} /> Seleccionado
+                        </div>
                       )}
                     </div>
                   ))}
@@ -385,8 +402,9 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                   onClick={handleNextStep}
                   disabled={!selectedTemplate}
                   className="primary-button"
+                  style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
                 >
-                  Siguiente →
+                  Siguiente <ArrowRightIcon size={16} />
                 </button>
               </div>
             </div>
@@ -402,12 +420,14 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
 
               <div className="template-preview">
                 <div className="preview-section">
-                  <h3>✨ Lo que incluye:</h3>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <SparklesIcon size={20} /> Lo que incluye:
+                  </h3>
                   <ul className="features-list">
                     {TEMPLATE_DETAILS[selectedTemplate.template_pack_id]?.features.map(
                       (feature, idx) => (
-                        <li key={idx}>
-                          <span className="feature-icon">✓</span>
+                        <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)' }}>
+                          <span className="feature-icon"><CheckIcon size={16} /></span>
                           {feature}
                         </li>
                       )
@@ -416,12 +436,14 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                 </div>
 
                 <div className="preview-section">
-                  <h3>🎯 Beneficios:</h3>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <TargetIcon size={20} /> Beneficios:
+                  </h3>
                   <ul className="benefits-list">
                     {TEMPLATE_DETAILS[selectedTemplate.template_pack_id]?.benefits.map(
                       (benefit, idx) => (
-                        <li key={idx}>
-                          <span className="benefit-icon">→</span>
+                        <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)' }}>
+                          <span className="benefit-icon"><ArrowRightIcon size={16} /></span>
                           {benefit}
                         </li>
                       )
@@ -438,11 +460,11 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
               </div>
 
               <div className="step-actions">
-                <button onClick={() => setStep(1)} className="secondary-button">
-                  ← Cambiar plantilla
+                <button onClick={() => setStep(1)} className="secondary-button" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <ArrowLeftIcon size={16} /> Cambiar plantilla
                 </button>
-                <button onClick={handleNextStep} className="primary-button">
-                  ¡Me gusta! Continuar →
+                <button onClick={handleNextStep} className="primary-button" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  ¡Me gusta! Continuar <ArrowRightIcon size={16} />
                 </button>
               </div>
             </div>
@@ -451,7 +473,9 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
           {/* PASO 3: Instalación */}
           {step === 3 && selectedTemplate && (
             <div className="step-container">
-              <h1 className="onboarding-title">🚀 Instalando tu workspace</h1>
+              <h1 className="onboarding-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', justifyContent: 'center' }}>
+                <RocketIcon size={32} /> Instalando tu workspace
+              </h1>
               <p className="onboarding-subtitle">
                 Estamos creando tu workspace personalizado en Notion...
                 Esto tomará aproximadamente 30 segundos.
@@ -468,15 +492,16 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                   {error && <div className="error-message">{error}</div>}
 
                   <div className="step-actions">
-                    <button onClick={() => setStep(2)} className="secondary-button">
-                      ← Volver
+                    <button onClick={() => setStep(2)} className="secondary-button" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                      <ArrowLeftIcon size={16} /> Volver
                     </button>
                     <button
                       onClick={handleInstallTemplate}
                       disabled={installing}
                       className="primary-button install-button"
+                      style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
                     >
-                      🎨 Instalar plantilla
+                      <PaletteIcon size={20} /> Instalar plantilla
                     </button>
                   </div>
                 </>
@@ -504,7 +529,9 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
           {step === 4 && (
             <div className="step-container success">
               <div className="success-animation">
-                <div className="success-icon">🎉</div>
+                <div className="success-icon">
+                  <PartyIcon size={64} color="var(--accent-green)" />
+                </div>
                 <h1 className="onboarding-title">¡Todo listo!</h1>
                 <p className="onboarding-subtitle">
                   Tu workspace ha sido creado exitosamente en Notion.
@@ -513,15 +540,21 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
 
               <div className="success-details">
                 <div className="success-card">
-                  <h3>✅ Workspace configurado</h3>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <CheckCircleIcon size={20} color="var(--accent-green)" /> Workspace configurado
+                  </h3>
                   <p>Databases, páginas y vistas creadas</p>
                 </div>
                 <div className="success-card">
-                  <h3>🤖 Resumen diario activado</h3>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <BotIcon size={20} color="var(--accent-blue)" /> Resumen diario activado
+                  </h3>
                   <p>Recibirás tu primer resumen mañana</p>
                 </div>
                 <div className="success-card">
-                  <h3>💬 Chat listo para usar</h3>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <MessageIcon size={20} color="var(--accent-purple)" /> Chat listo para usar
+                  </h3>
                   <p>Ya puedes hacer preguntas sobre tu Notion</p>
                 </div>
               </div>
@@ -530,13 +563,13 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                 <p><strong>Próximo paso:</strong></p>
                 <p style={{ marginTop: '8px', opacity: 0.9 }}>
                   Vamos al chat donde te guiaré para empezar a usar tu nuevo workspace.
-                  No necesitas aprender Notion, solo háblame naturalmente 😊
+                  No necesitas aprender Notion, solo háblame naturalmente
                 </p>
               </div>
 
               <div className="step-actions">
-                <button onClick={onComplete} className="primary-button large">
-                  💬 Empecemos a conversar
+                <button onClick={onComplete} className="primary-button large" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <MessageIcon size={20} /> Empecemos a conversar
                 </button>
               </div>
             </div>
