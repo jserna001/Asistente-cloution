@@ -280,27 +280,63 @@ REGLAS ESTRICTAS (en orden de prioridad):
   if (withMCP) {
     basePrompt += `
 
---- HERRAMIENTAS MCP DE NOTION DISPONIBLES ---
+--- 🔧 HERRAMIENTAS MCP DE NOTION DISPONIBLES (15 TOOLS) ---
 
-Tienes acceso a herramientas avanzadas de Notion vía MCP:
-- **search_notion**: Buscar páginas y bases de datos (USA ESTO cuando el usuario pida buscar en Notion)
-- **fetch_page**: Obtener contenido completo de una página
-- **create_page**: Crear nuevas páginas con contenido rico
-- **update_page**: Actualizar páginas existentes
-- **append_block**: Añadir bloques de contenido
-- **create_database_page**: Crear entradas en bases de datos
-- **update_database_page**: Actualizar entradas de bases de datos
-- **query_database**: Consultar bases de datos con filtros
-- **get_database**: Obtener esquema de una base de datos
-- Y más...
+Tienes acceso COMPLETO a las siguientes herramientas nativas de Notion:
 
-**IMPORTANTE SOBRE BÚSQUEDAS EN NOTION:**
-- Si el usuario dice "Busca en Notion...", "¿Qué tengo en Notion...?", etc., USA 'search_notion'
-- NO respondas basándote solo en RAG_CONTEXT cuando el usuario pide explícitamente buscar en Notion
-- El RAG_CONTEXT puede tener datos antiguos; Notion tiene la información actualizada en tiempo real
+📄 CREACIÓN DE CONTENIDO:
+1. **create_page** - Crear nuevas páginas con contenido rico (texto, encabezados, listas, etc.)
+   Ejemplo: "Crear nota sobre ideas del día" → Usa create_page
+2. **append_block_children** - Añadir bloques de contenido a páginas existentes
+   Ejemplo: "Agregar sección a mi página de proyecto"
 
-Usa estas herramientas para tareas COMPLEJAS de Notion (crear páginas, buscar información, actualizar bases de datos).
-Para tareas SIMPLES como "añade esta tarea", usa 'add_task_to_notion'.`;
+🗄️ BASES DE DATOS:
+3. **create_database** - Crear nuevas bases de datos
+4. **create_database_page** - Crear entradas en bases de datos (tareas, proyectos, etc.)
+   Ejemplo: "Crear tarea: Comprar leche" → Usa create_database_page
+5. **query_database** - Consultar bases de datos con filtros
+   Ejemplo: "Lista mis tareas pendientes"
+6. **get_database** - Obtener esquema/estructura de una base de datos
+7. **update_database_page** - Actualizar entradas de bases de datos
+
+🔍 BÚSQUEDA Y LECTURA:
+8. **search_notion** - Buscar páginas y bases de datos en el workspace
+   Ejemplo: "Busca en Notion sobre proyecto X" → USA ESTO PRIMERO
+9. **get_page** - Obtener contenido completo de una página específica
+10. **get_page_property** - Obtener propiedades específicas de una página
+11. **get_block_children** - Leer bloques de contenido de una página
+
+✏️ EDICIÓN:
+12. **update_page** - Actualizar propiedades de páginas existentes
+13. **update_block** - Actualizar bloques de contenido
+14. **delete_block** - Eliminar bloques
+
+👥 USUARIOS Y COMENTARIOS:
+15. **get_user**, **list_users**, **retrieve_comments** - Info de usuarios y comentarios
+
+**REGLAS CRÍTICAS DE USO:**
+
+1. **Para crear notas/ideas/páginas:** USA **create_page**
+   Ejemplo: "Agregar nota sobre ideas" → create_page con título y contenido
+
+2. **Para crear tareas:** USA **create_database_page** (en la base de datos de tareas)
+   Ejemplo: "Crea tarea: Comprar leche" → create_database_page
+
+3. **Para buscar:** SIEMPRE usa **search_notion** PRIMERO
+   ⚠️ NO respondas basándote solo en RAG_CONTEXT cuando el usuario pide explícitamente buscar en Notion
+   El RAG_CONTEXT puede tener datos antiguos; Notion tiene información actualizada en tiempo real
+
+4. **Anti-alucinación:** NUNCA digas que completaste algo sin haber usado una herramienta MCP
+   ✅ Correcto: Llamar create_page → "He creado la nota con éxito"
+   ❌ Incorrecto: "He creado la nota" sin llamar a ninguna herramienta
+
+**EJEMPLOS DE USO:**
+- "Agregar nota sobre ideas del día" → create_page(title="Ideas del día", content=...)
+- "Crea tarea: Comprar leche" → create_database_page(database_id="...", properties={Name: "Comprar leche"})
+- "Busca en Notion sobre proyecto X" → search_notion(query="proyecto X")
+- "Lista mis tareas pendientes" → query_database(database_id="...", filter={Status: "Pendiente"})
+
+Para tareas SIMPLES usa 'add_task_to_notion', pero para CUALQUIER otra operación de Notion usa las herramientas MCP.`;
   }
 
   return basePrompt;

@@ -18,10 +18,72 @@ function getClassifierModel() {
 }
 
 /**
+ * Keywords para detectar operaciones de Notion
+ */
+const NOTION_KEYWORDS = [
+  'notion',
+  'tarea', 'tareas', 'task', 'tasks', 'todo', 'todos',
+  'nota', 'notas', 'note', 'notes',
+  'página', 'pagina', 'page', 'pages',
+  'idea', 'ideas',
+  'recordatorio', 'recordatorios', 'reminder', 'reminders',
+  'entrada', 'entradas', 'entry', 'entries',
+  'database', 'base de datos', 'bd'
+];
+
+const NOTION_ACTIONS = [
+  'crear', 'crea', 'create', 'creame',
+  'agregar', 'agrega', 'añadir', 'añade', 'add', 'agregame', 'añademe',
+  'guardar', 'guarda', 'save',
+  'nueva', 'nuevo', 'new',
+  'actualizar', 'actualiza', 'update', 'actualizame',
+  'editar', 'edita', 'edit',
+  'buscar', 'busca', 'search', 'encontrar', 'encuentra', 'find',
+  'listar', 'lista', 'list', 'ver', 'mostrar', 'show', 'dame'
+];
+
+/**
+ * Detecta si una query es una operación de Notion basándose en keywords
+ */
+function detectNotionOperation(query: string): boolean {
+  const lowerQuery = query.toLowerCase();
+
+  // 1. Si menciona explícitamente "notion" → siempre es NOTION_MCP
+  if (lowerQuery.includes('notion')) {
+    return true;
+  }
+
+  // 2. Si combina ACCIÓN + KEYWORD de Notion → probablemente es NOTION_MCP
+  const hasNotionAction = NOTION_ACTIONS.some(action => {
+    // Buscar la palabra completa (word boundary)
+    const regex = new RegExp(`\\b${action}\\b`, 'i');
+    return regex.test(lowerQuery);
+  });
+
+  const hasNotionKeyword = NOTION_KEYWORDS.some(keyword => {
+    const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+    return regex.test(lowerQuery);
+  });
+
+  if (hasNotionAction && hasNotionKeyword) {
+    console.log(`[CLASSIFIER] 🎯 Detección de Notion: Acción + Keyword encontrados`);
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Clasifica una consulta del usuario en un tipo de tarea
  */
 export async function classifyTask(query: string, ragContext: string): Promise<TaskType> {
   const startTime = Date.now();
+
+  // PRE-CLASIFICACIÓN: Detectar operaciones de Notion con reglas
+  if (detectNotionOperation(query)) {
+    console.log(`[CLASSIFIER] ⚡ Pre-clasificación: Query detectada como NOTION_MCP (keywords)`);
+    return 'NOTION_MCP';
+  }
 
   const classificationPrompt = `Eres un clasificador de intenciones. Analiza la solicitud del usuario y clasifícala en UNA categoría.
 
@@ -30,26 +92,33 @@ CATEGORÍAS DISPONIBLES:
 1. SIMPLE: Saludos, conversación casual, preguntas generales que NO requieren herramientas
    Ejemplos: "Hola", "¿Cómo estás?", "Gracias", "¿Qué puedes hacer?"
 
-2. RAG: Preguntas sobre información personal del usuario (tareas, correos, notas, calendario)
-   Ejemplos: "¿Qué tareas tengo?", "¿Hay correos importantes?", "¿Qué tengo en mi agenda?"
+2. RAG: Preguntas sobre información personal del usuario (correos, calendario) que ya está en memoria
+   Ejemplos: "¿Hay correos importantes?", "¿Qué tengo en mi agenda de hoy?"
    NOTA: Si el RAG_CONTEXT contiene información relevante, probablemente es RAG
 
 3. BROWSER: Navegar web, interactuar con páginas, hacer búsquedas en internet
    Ejemplos: "Navega a google.com", "Busca información sobre...", "Abre la página de..."
 
-4. NOTION_MCP: CUALQUIER operación que mencione explícitamente "Notion"
-   Ejemplos: "Busca en Notion...", "Crea una página en Notion...", "Actualiza mi base de datos de Notion"
-   REGLA CRÍTICA: Si la query contiene la palabra "Notion", SIEMPRE clasifica como NOTION_MCP
+4. NOTION_MCP: CUALQUIER operación relacionada con tareas, notas, páginas, ideas, recordatorios
+   Ejemplos:
+   - "Crea una tarea: Comprar leche"
+   - "Agregar nota sobre ideas del día"
+   - "Nueva página para proyecto X"
+   - "Guardar esta idea en mis notas"
+   - "Busca en mis tareas pendientes"
+   - "Lista mis recordatorios"
+   REGLA CRÍTICA: Si menciona crear/agregar/guardar/buscar + (tarea/nota/página/idea) → NOTION_MCP
 
 5. COMPLEX: Tareas que requieren múltiples herramientas o razonamiento profundo
    Ejemplos: "Busca información en web Y añádela a Notion", "Revisa mis correos Y crea tareas"
 
 REGLAS IMPORTANTES (en orden de prioridad):
 1. Si la query contiene "Notion" (case-insensitive), SIEMPRE clasifica como NOTION_MCP
-2. Si menciona URL o "navega" o "busca en internet", clasifica como BROWSER
-3. Si menciona "añadir tarea" o "recuérdame" SIN mencionar Notion, clasifica como SIMPLE
-4. Si la pregunta es simple y el RAG_CONTEXT tiene la respuesta, clasifica como RAG
+2. Si menciona crear/agregar/guardar + (tarea/nota/página/idea), clasifica como NOTION_MCP
+3. Si menciona URL o "navega" o "busca en internet", clasifica como BROWSER
+4. Si pregunta por información que está en RAG_CONTEXT, clasifica como RAG
 5. Solo usa COMPLEX si claramente necesita 2+ herramientas DIFERENTES
+6. Solo usa SIMPLE si es conversación casual SIN requerir acciones
 
 RAG_CONTEXT disponible:
 ${ragContext ? 'SÍ - hay información relevante en memoria' : 'NO - no hay información relevante'}
