@@ -200,16 +200,21 @@ function ChatUI() {
       return;
     }
 
+    // Normalizar ambas fechas a medianoche local para comparación precisa
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     let needsNewSummary = false;
 
     if (data && data.length > 0) {
       const date = new Date(data[0].created_at);
-      const isToday = date.toDateString() === today.toDateString();
+      date.setHours(0, 0, 0, 0); // Normalizar a medianoche local
+
+      const isToday = date.getTime() === today.getTime();
 
       if (isToday) {
+        console.log('✓ Resumen de hoy encontrado');
         setDailySummary(data[0].summary_text);
-        const formattedDate = date.toLocaleDateString('es-CO', {
+        const formattedDate = new Date(data[0].created_at).toLocaleDateString('es-CO', {
           weekday: 'long',
           year: 'numeric',
           month: 'long',
@@ -219,7 +224,7 @@ function ChatUI() {
       } else {
         needsNewSummary = true;
         setDailySummary(data[0].summary_text);
-        const formattedDate = date.toLocaleDateString('es-CO', {
+        const formattedDate = new Date(data[0].created_at).toLocaleDateString('es-CO', {
           weekday: 'long',
           year: 'numeric',
           month: 'long',
