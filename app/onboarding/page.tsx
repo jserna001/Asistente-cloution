@@ -72,6 +72,44 @@ function OnboardingContent() {
         }));
       }
 
+      // Verificar si hay credenciales de Notion
+      const { data: credentials } = await supabase
+        .from('user_credentials')
+        .select('service_name')
+        .eq('user_id', user.id)
+        .eq('service_name', 'notion')
+        .maybeSingle();
+
+      if (credentials) {
+        setFormData(prev => ({
+          ...prev,
+          notionConnected: true,
+        }));
+      }
+
+      // Detectar si viene de conectar Notion
+      const status = searchParams?.get('status');
+      if (status === 'notion_connected') {
+        // Restaurar el paso guardado antes de OAuth
+        const savedStep = localStorage.getItem('onboarding_step_before_oauth');
+        if (savedStep) {
+          const step = parseInt(savedStep);
+          if (step >= 1 && step <= 3) {
+            setCurrentStep(step as WizardStep);
+          }
+          localStorage.removeItem('onboarding_step_before_oauth');
+        }
+
+        // Marcar Notion como conectado
+        setFormData(prev => ({
+          ...prev,
+          notionConnected: true,
+        }));
+
+        // Limpiar el parámetro status de la URL
+        router.replace('/onboarding', { scroll: false });
+      }
+
       // Verificar si viene de un paso específico (onboarding incompleto)
       const stepParam = searchParams?.get('step');
       if (stepParam) {
@@ -615,6 +653,8 @@ function Step1Welcome({ formData, setFormData }: StepProps) {
 
 function Step2Integrations({ formData, setFormData }: StepProps) {
   const handleConnectNotion = () => {
+    // Guardar el paso actual antes de redirigir
+    localStorage.setItem('onboarding_step_before_oauth', '2');
     // Redirigir al flujo OAuth de Notion con origen 'onboarding'
     window.location.href = '/api/auth/notion/redirect?from=onboarding';
   };
