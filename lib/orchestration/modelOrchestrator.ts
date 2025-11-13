@@ -33,11 +33,25 @@ export async function orchestrateModelExecution(
 
   // PASO 1: Clasificar la tarea
   console.log('\n[1/3] CLASIFICACIÓN DE TAREA');
-  const taskType = await classifyTask(context.query, context.ragContext);
-  const modelConfig = TASK_MODEL_MAPPING[taskType];
+  let taskType = await classifyTask(context.query, context.ragContext);
+  let modelConfig = TASK_MODEL_MAPPING[taskType];
 
   console.log(`✓ Tarea clasificada como: ${taskType}`);
   console.log(`✓ Modelo seleccionado: ${modelConfig.provider} / ${modelConfig.model}`);
+
+  // VALIDACIÓN PRE-EJECUCIÓN: Prevenir alucinaciones
+  console.log('\n[1.5/3] VALIDACIÓN DE CLASIFICACIÓN');
+  const validationResult = validateTaskClassification(context.query, taskType, modelConfig);
+
+  if (validationResult.shouldOverride) {
+    console.log(`⚠️ OVERRIDE: ${validationResult.reason}`);
+    taskType = validationResult.newTaskType!;
+    modelConfig = TASK_MODEL_MAPPING[taskType];
+    console.log(`✓ Nueva clasificación: ${taskType}`);
+    console.log(`✓ Nuevo modelo: ${modelConfig.provider} / ${modelConfig.model}`);
+  } else {
+    console.log(`✓ Clasificación válida, continuando...`);
+  }
 
   // PASO 2: Seleccionar herramientas según tipo de tarea
   console.log('\n[2/3] PREPARACIÓN DE HERRAMIENTAS');
@@ -91,6 +105,77 @@ export async function orchestrateModelExecution(
   logMetrics(result, totalTime);
 
   return result;
+}
+
+/**
+ * Valida que la clasificación sea correcta y previene alucinaciones
+ */
+interface ValidationResult {
+  shouldOverride: boolean;
+  reason?: string;
+  newTaskType?: TaskType;
+}
+
+function validateTaskClassification(
+  query: string,
+  taskType: TaskType,
+  modelConfig: ModelConfig
+): ValidationResult {
+  const lowerQuery = query.toLowerCase();
+
+  // VALIDACIÓN 1: Si Gemini Flash fue seleccionado pero la query menciona crear/agregar notas/páginas/ideas
+  // → Debe ser NOTION_MCP con Claude
+  if (modelConfig.provider === 'gemini' && modelConfig.model.includes('flash')) {
+    const notionComplexKeywords = [
+      'nota', 'notas', 'note', 'notes',
+      'página', 'pagina', 'page', 'pages',
+      'idea', 'ideas',
+      'documento', 'documentos'
+    ];
+
+    const notionComplexActions = [
+      'crear', 'crea', 'create',
+      'agregar', 'agrega', 'añadir', 'añade', 'add',
+      'guardar', 'guarda', 'save',
+      'nueva', 'nuevo', 'new'
+    ];
+
+    const hasComplexAction = notionComplexActions.some(action => {
+      const regex = new RegExp(`\\b${action}\\b`, 'i');
+      return regex.test(lowerQuery);
+    });
+
+    const hasComplexKeyword = notionComplexKeywords.some(keyword => {
+      const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+      return regex.test(lowerQuery);
+    });
+
+    if (hasComplexAction && hasComplexKeyword) {
+      return {
+        shouldOverride: true,
+        reason: 'Query requiere crear nota/página/idea → Gemini Flash NO puede hacerlo → Redirigiendo a Claude Sonnet con MCP',
+        newTaskType: 'NOTION_MCP'
+      };
+    }
+  }
+
+  // VALIDACIÓN 2: Si la clasificación es SIMPLE pero la query menciona "buscar" + "notion/tareas/notas"
+  // → Probablemente debería ser NOTION_MCP o RAG
+  if (taskType === 'SIMPLE') {
+    const hasSearch = /\b(buscar|busca|search|encontrar|encuentra|find|listar|lista|list|dame|mostrar)\b/i.test(lowerQuery);
+    const hasNotionContent = /\b(notion|tarea|tareas|nota|notas|idea|ideas)\b/i.test(lowerQuery);
+
+    if (hasSearch && hasNotionContent) {
+      return {
+        shouldOverride: true,
+        reason: 'Query pide buscar en Notion/tareas/notas → Requiere herramientas → Redirigiendo a NOTION_MCP',
+        newTaskType: 'NOTION_MCP'
+      };
+    }
+  }
+
+  // No se requiere override
+  return { shouldOverride: false };
 }
 
 /**
