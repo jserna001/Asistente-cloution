@@ -146,6 +146,12 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
   const supabase = createSupabaseBrowserClient();
   const router = useRouter();
 
+  // Helper para remover emojis del nombre
+  const removeEmoji = (text: string) => {
+    // Remueve emojis y espacios del inicio del string
+    return text.replace(/^[\p{Emoji}\s]+/u, '').trim();
+  };
+
   // Cargar catálogo de plantillas al montar
   useEffect(() => {
     loadTemplates();
@@ -380,7 +386,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                       onClick={() => handleSelectTemplate(template)}
                     >
                       <div className="template-icon">{template.icon}</div>
-                      <h3 className="template-name">{template.name}</h3>
+                      <h3 className="template-name">{removeEmoji(template.name)}</h3>
                       <p className="template-description">{template.description}</p>
                       <div className="template-audience">
                         <small>Para: {template.target_audience.join(', ')}</small>
@@ -414,7 +420,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
           {step === 2 && selectedTemplate && (
             <div className="step-container">
               <h1 className="onboarding-title">
-                {selectedTemplate.icon} {selectedTemplate.name}
+                {selectedTemplate.icon} {removeEmoji(selectedTemplate.name)}
               </h1>
               <p className="onboarding-subtitle">{selectedTemplate.description}</p>
 
@@ -485,7 +491,7 @@ export default function OnboardingWizard({ onComplete, onSkip }: OnboardingWizar
                 <>
                   <div className="install-preview">
                     <div className="preview-icon">{selectedTemplate.icon}</div>
-                    <h2>{selectedTemplate.name}</h2>
+                    <h2>{removeEmoji(selectedTemplate.name)}</h2>
                     <p>Se crearán databases, páginas y vistas automáticamente</p>
                   </div>
 
