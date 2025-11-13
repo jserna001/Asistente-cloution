@@ -465,20 +465,25 @@ export async function GET(request: Request) {
         const checkDateStart = new Date();
         checkDateStart.setHours(0, 0, 0, 0);
 
-        const { data: existingSummary, error: summaryCheckError } = await supabase
+        const { data: existingSummaries, error: summaryCheckError } = await supabase
           .from('daily_summaries')
           .select('id, created_at')
           .eq('user_id', userId)
           .gte('created_at', checkDateStart.toISOString())
-          .maybeSingle();
+          .limit(1); // Cambiar a limit(1) en lugar de maybeSingle()
 
-        if (!summaryCheckError && existingSummary) {
-          console.log(`[CRON] [${userId}] ⏭️ Ya existe un resumen de hoy, saltando...`);
+        if (summaryCheckError) {
+          console.error(`[CRON] [${userId}] Error verificando resumen existente:`, summaryCheckError);
+          // No lanzar error, continuar para intentar crear el resumen
+        }
+
+        if (existingSummaries && existingSummaries.length > 0) {
+          console.log(`[CRON] [${userId}] ⏭️ Ya existe un resumen de hoy (${existingSummaries.length} encontrado(s)), saltando...`);
           results.push({
             userId,
             success: true,
             skipped: true,
-            message: 'Resumen de hoy ya existe'
+            message: `Resumen de hoy ya existe (encontrados: ${existingSummaries.length})`
           });
           continue;
         }

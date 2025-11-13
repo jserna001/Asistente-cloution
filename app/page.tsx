@@ -127,6 +127,7 @@ function ChatUI() {
   const [dailySummary, setDailySummary] = useState<string | null>(null);
   const [summaryDate, setSummaryDate] = useState<string | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false); // Evitar llamadas concurrentes
 
   // Estados para onboarding
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -187,58 +188,69 @@ function ChatUI() {
 
   // Cargar resumen diario
   async function loadDailySummary() {
-    console.log('Cargando resumen diario...');
-
-    const { data, error } = await supabase
-      .from('daily_summaries')
-      .select('summary_text, created_at')
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (error) {
-      console.error('Error cargando el resumen diario:', error);
+    // Evitar llamadas concurrentes
+    if (isLoadingSummary || isRegenerating) {
+      console.log('⏭️ Ya hay una carga/generación de resumen en progreso, saltando...');
       return;
     }
 
-    // Normalizar ambas fechas a medianoche local para comparación precisa
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    let needsNewSummary = false;
+    setIsLoadingSummary(true);
+    console.log('Cargando resumen diario...');
 
-    if (data && data.length > 0) {
-      const date = new Date(data[0].created_at);
-      date.setHours(0, 0, 0, 0); // Normalizar a medianoche local
+    try {
+      const { data, error } = await supabase
+        .from('daily_summaries')
+        .select('summary_text, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      const isToday = date.getTime() === today.getTime();
+      if (error) {
+        console.error('Error cargando el resumen diario:', error);
+        return;
+      }
 
-      if (isToday) {
-        console.log('✓ Resumen de hoy encontrado');
-        setDailySummary(data[0].summary_text);
-        const formattedDate = new Date(data[0].created_at).toLocaleDateString('es-CO', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        });
-        setSummaryDate(`Hoy, ${formattedDate}`);
+      // Normalizar ambas fechas a medianoche local para comparación precisa
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      let needsNewSummary = false;
+
+      if (data && data.length > 0) {
+        const date = new Date(data[0].created_at);
+        date.setHours(0, 0, 0, 0); // Normalizar a medianoche local
+
+        const isToday = date.getTime() === today.getTime();
+
+        if (isToday) {
+          console.log('✓ Resumen de hoy encontrado');
+          setDailySummary(data[0].summary_text);
+          const formattedDate = new Date(data[0].created_at).toLocaleDateString('es-CO', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+          setSummaryDate(`Hoy, ${formattedDate}`);
+        } else {
+          needsNewSummary = true;
+          setDailySummary(data[0].summary_text);
+          const formattedDate = new Date(data[0].created_at).toLocaleDateString('es-CO', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+          setSummaryDate(formattedDate);
+        }
       } else {
         needsNewSummary = true;
-        setDailySummary(data[0].summary_text);
-        const formattedDate = new Date(data[0].created_at).toLocaleDateString('es-CO', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        });
-        setSummaryDate(formattedDate);
       }
-    } else {
-      needsNewSummary = true;
-    }
 
-    if (needsNewSummary) {
-      console.log('No hay resumen de hoy, generando uno nuevo...');
-      await generateDailySummary();
+      if (needsNewSummary) {
+        console.log('No hay resumen de hoy, generando uno nuevo...');
+        await generateDailySummary();
+      }
+    } finally {
+      setIsLoadingSummary(false);
     }
   }
 
