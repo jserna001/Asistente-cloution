@@ -65,7 +65,8 @@ export async function orchestrateModelExecution(
 
   try {
     if (modelConfig.provider === 'gemini') {
-      answer = await executeGemini(modelConfig.model, context, toolsConfig);
+      // Pasar taskType para que cargue las herramientas correctas
+      answer = await executeGemini(modelConfig.model, context, taskType, toolsConfig);
     } else if (modelConfig.provider === 'claude') {
       const useMCP = taskType === 'NOTION_MCP' || taskType === 'COMPLEX';
       answer = await executeClaude(modelConfig.model, context, useMCP);
@@ -78,7 +79,7 @@ export async function orchestrateModelExecution(
     // Fallback: intentar con Gemini Pro si falla Claude
     if (modelConfig.provider === 'claude') {
       console.log('\n⚠️ FALLBACK: Intentando con Gemini Pro...');
-      answer = await executeGemini('gemini-2.5-pro', context);
+      answer = await executeGemini('gemini-2.5-pro', context, undefined);
     } else {
       throw error;
     }

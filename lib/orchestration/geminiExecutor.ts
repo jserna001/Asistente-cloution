@@ -1,12 +1,16 @@
 /**
  * Ejecutor de modelos Gemini (Flash y Pro)
  * Refactorizado del código original de /api/chat
+ * Incluye integración con Google Services
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { ExecutionContext, ChatMessage } from './types';
+import { ExecutionContext, ChatMessage, TaskType } from './types';
 import { addNotionTodo } from '../notionActions';
 import { executeBrowserAction } from '../browserService';
+import { getToolsForTaskType } from '../googleServices/toolDefinitions';
+import { getSystemPromptForTaskType } from '../googleServices/systemPrompts';
+import { executeGoogleTool, isGoogleTool } from '../googleServices/toolExecutor';
 
 const geminiApiKey = process.env.GEMINI_API_KEY!;
 if (!geminiApiKey) {
@@ -107,28 +111,42 @@ const geminiTools = [{
 export async function executeGemini(
   modelName: string,
   context: ExecutionContext,
+  taskType?: TaskType, // Nuevo: TaskType para cargar herramientas específicas
   toolsSubset?: string[] // Opcionalmente filtrar herramientas disponibles
 ): Promise<string> {
   const startTime = Date.now();
 
   console.log(`[GEMINI] Ejecutando con modelo: ${modelName}`);
+  console.log(`[GEMINI] TaskType: ${taskType || 'general'}`);
   console.log(`[GEMINI] Query: "${context.query.substring(0, 100)}..."`);
 
   // Inicializar modelo
   const chatModel = genAI.getGenerativeModel({ model: modelName });
 
-  // Filtrar herramientas si se especifica
-  let tools = geminiTools;
-  if (toolsSubset && toolsSubset.length > 0) {
-    tools = [{
-      functionDeclarations: geminiTools[0].functionDeclarations.filter(
-        (tool: any) => toolsSubset.includes(tool.name)
-      )
-    }];
+  // Cargar herramientas según TaskType
+  let tools: any;
+
+  if (taskType && ['GMAIL', 'CALENDAR', 'GOOGLE_TASKS', 'GOOGLE_DRIVE'].includes(taskType)) {
+    // Usar herramientas de Google Services
+    const googleTools = getToolsForTaskType(taskType);
+    tools = [{ functionDeclarations: googleTools }];
+    console.log(`[GEMINI] Cargadas ${googleTools.length} herramientas para ${taskType}`);
+  } else {
+    // Usar herramientas estándar (browser, notion, etc.)
+    tools = geminiTools;
+
+    // Filtrar herramientas si se especifica
+    if (toolsSubset && toolsSubset.length > 0) {
+      tools = [{
+        functionDeclarations: geminiTools[0].functionDeclarations.filter(
+          (tool: any) => toolsSubset.includes(tool.name)
+        )
+      }];
+    }
   }
 
-  // Construir instrucciones del sistema
-  const systemInstructionText = buildSystemInstruction();
+  // Construir instrucciones del sistema (específicas para Google Services si aplica)
+  const systemInstructionText = buildSystemInstruction(taskType);
 
   // Procesar historial
   const processedHistory = context.history.map((msg: ChatMessage) => ({
@@ -176,26 +194,38 @@ ${context.query}
     }
 
     // Ejecutar herramienta
-    switch (toolCall.name) {
-      case 'api.add_task_to_notion':
-        await addNotionTodo(context.userId, NOTION_PAGE_ID, (toolCall.args as any).task_text);
-        toolResult = "Tarea añadida con éxito.";
-        break;
+    if (isGoogleTool(toolCall.name)) {
+      // Herramientas de Google Services
+      toolResult = await executeGoogleTool(
+        toolCall.name,
+        toolCall.args,
+        context.supabase,
+        context.userId
+      );
+      console.log('[GEMINI] Google tool result:', toolResult);
+    } else {
+      // Herramientas estándar (browser, notion, etc.)
+      switch (toolCall.name) {
+        case 'api.add_task_to_notion':
+          await addNotionTodo(context.userId, NOTION_PAGE_ID, (toolCall.args as any).task_text);
+          toolResult = "Tarea añadida con éxito.";
+          break;
 
-      default:
-        if (toolCall.name.startsWith('browser.')) {
-          toolResult = await executeBrowserAction(
-            context.userId,
-            context.supabase,
-            toolCall.name,
-            toolCall.args
-          );
-          console.log('[GEMINI] Browser tool result:', toolResult);
-        } else {
-          console.warn(`[GEMINI] Herramienta desconocida: ${toolCall.name}`);
-          toolResult = 'Herramienta no reconocida.';
-        }
-        break;
+        default:
+          if (toolCall.name.startsWith('browser.')) {
+            toolResult = await executeBrowserAction(
+              context.userId,
+              context.supabase,
+              toolCall.name,
+              toolCall.args
+            );
+            console.log('[GEMINI] Browser tool result:', toolResult);
+          } else {
+            console.warn(`[GEMINI] Herramienta desconocida: ${toolCall.name}`);
+            toolResult = 'Herramienta no reconocida.';
+          }
+          break;
+      }
     }
 
     // Enviar resultado de vuelta al modelo
@@ -225,8 +255,16 @@ ${context.query}
 
 /**
  * Construye las instrucciones del sistema para Gemini
+ * @param taskType - Si es un TaskType de Google Services, usar su system prompt específico
  */
-function buildSystemInstruction(): string {
+function buildSystemInstruction(taskType?: TaskType): string {
+  // Si es un TaskType de Google Services, usar su system prompt específico
+  if (taskType && ['GMAIL', 'CALENDAR', 'GOOGLE_TASKS', 'GOOGLE_DRIVE'].includes(taskType)) {
+    return getSystemPromptForTaskType(taskType);
+  }
+
+  // System prompt estándar para otros casos
+
   return `Eres un asistente que DEBE usar herramientas para responder. NUNCA respondas con texto plano directamente.
 
 ⚠️ LIMITACIONES CRÍTICAS - LEE ESTO PRIMERO:
