@@ -196,19 +196,20 @@ function OnboardingContent() {
     }
   };
 
-  // Completar onboarding
+  // Completar onboarding básico (NO marca como completado aún)
   const completeOnboarding = async () => {
     if (!userId) return;
 
     setIsLoading(true);
 
     try {
-      // Guardar preferencias del usuario y marcar onboarding como completado
+      // Guardar preferencias del usuario SIN marcar onboarding como completado
+      // El wizard de plantillas Notion lo marcará después
       const { error: prefsError } = await supabase
         .from('user_preferences')
         .upsert({
           user_id: userId,
-          onboarding_completed: true,
+          onboarding_completed: false, // IMPORTANTE: No marcar todavía
           daily_summary_enabled: formData.dailySummaryEnabled,
           daily_summary_time: formData.dailySummaryTime + ':00',
           timezone: formData.timezone,
@@ -216,8 +217,8 @@ function OnboardingContent() {
 
       if (prefsError) throw prefsError;
 
-      // Redirigir al dashboard
-      router.push('/?status=onboarding_complete');
+      // Redirigir al chat donde se mostrará el wizard de plantillas
+      router.push('/');
 
     } catch (error) {
       console.error('Error completando onboarding:', error);
