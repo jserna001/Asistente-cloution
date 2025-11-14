@@ -175,6 +175,32 @@ function validateTaskClassification(
     }
   }
 
+  // VALIDACIÓN 3: Si clasificación es SIMPLE/GMAIL/CALENDAR pero pregunta sobre correos/eventos RECIBIDOS
+  // → Debe ser RAG (leer información ya ingresada)
+  if (taskType === 'SIMPLE' || taskType === 'GMAIL' || taskType === 'CALENDAR') {
+    const isQuestionAboutExistingData = /\b(que|qué|cuál|cuales|cuantos|cuántos|how many|what|which)\b/i.test(lowerQuery);
+    const mentionsEmailOrCalendar = /\b(correo|correos|email|emails|mensaje|mensajes|evento|eventos|reunión|reuniones|meeting)\b/i.test(lowerQuery);
+    const mentionsReception = /\b(recibido|recibí|recibidos|recibida|recibidas|tengo|hay|llegó|llegaron|received|have|got)\b/i.test(lowerQuery);
+
+    if (isQuestionAboutExistingData && mentionsEmailOrCalendar && mentionsReception) {
+      return {
+        shouldOverride: true,
+        reason: 'Query pregunta sobre correos/eventos RECIBIDOS (lectura de datos existentes) → Requiere RAG',
+        newTaskType: 'RAG'
+      };
+    }
+
+    // También: si pregunta sobre correos/eventos sin acción de envío/creación → RAG
+    const hasActionVerb = /\b(enviar|envía|send|crear|crea|create|agendar|schedule|programar)\b/i.test(lowerQuery);
+    if (isQuestionAboutExistingData && mentionsEmailOrCalendar && !hasActionVerb) {
+      return {
+        shouldOverride: true,
+        reason: 'Query pregunta sobre correos/eventos sin acción (solo lectura) → Requiere RAG',
+        newTaskType: 'RAG'
+      };
+    }
+  }
+
   // No se requiere override
   return { shouldOverride: false };
 }
