@@ -198,9 +198,17 @@ function ChatUI() {
     console.log('Cargando resumen diario...');
 
     try {
+      // Obtener sesión del usuario actual
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        console.error('Error obteniendo sesión:', sessionError);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('daily_summaries')
         .select('summary_text, created_at')
+        .eq('user_id', session.user.id) // ← FIX: Filtrar por usuario actual
         .order('created_at', { ascending: false })
         .limit(1);
 
