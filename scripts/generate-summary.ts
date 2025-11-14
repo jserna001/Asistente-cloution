@@ -3,6 +3,7 @@ import { getGoogleOAuthClient } from '../lib/googleAuth';
 import { google } from 'googleapis';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Client as NotionClient } from '@notionhq/client';
+import { ingestAllData } from '../lib/ingestionService';
 import * as dotenv from 'dotenv';
 
 // Cargar variables de entorno desde .env.local
@@ -119,6 +120,20 @@ Tendencias de la Semana:
  */
 async function main() {
   console.log("Iniciando la generación del resumen matutino...");
+
+  // === PASO 0: INGESTA DE DATOS (NUEVO) ===
+  console.log("\n[FASE 0] Ingesta de datos frescos antes del resumen...");
+  try {
+    const ingestionResult = await ingestAllData(userId);
+
+    console.log(`[FASE 0] ✓ Ingesta completada:`);
+    console.log(`  - Gmail: ${ingestionResult.gmail.emailsProcessed} correos nuevos`);
+    console.log(`  - Notion: ${ingestionResult.notion.pagesProcessed} páginas nuevas`);
+  } catch (ingestionError: any) {
+    console.warn(`[FASE 0] ⚠ Error en ingesta (continuando con datos existentes):`, ingestionError.message);
+    // No fallar el resumen si falla la ingesta, continuar con datos existentes
+  }
+  console.log();
 
   // a. Obtener y configurar el token de Google
   const { data: creds, error: credsError } = await supabase
