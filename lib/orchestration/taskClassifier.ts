@@ -36,7 +36,12 @@ const GMAIL_ACTIONS = [
   'redactar', 'redacta', 'draft', 'borrador',
   'responder', 'responde', 'reply', 'contestar', 'contesta',
   'reenviar', 'reenvía', 'reenvia', 'forward',
-  'etiquetar', 'etiqueta', 'label', 'archivar', 'archiva', 'archive'
+  'etiquetar', 'etiqueta', 'label', 'archivar', 'archiva', 'archive',
+  // Keywords de lectura/recepción (fix alucinación)
+  'recibir', 'recibí', 'recibido', 'recibidos', 'recibida', 'recibidas', 'received',
+  'llegó', 'llegaron', 'llegar', 'arrived',
+  'tengo', 'hay', 'have', 'got',
+  'me llegó', 'me llegaron'
 ];
 
 // Calendar Keywords
@@ -282,15 +287,27 @@ CATEGORÍAS DISPONIBLES:
    Ejemplos: "Busca información en web Y añádela a Notion"
 
 REGLAS IMPORTANTES (en orden de prioridad):
-1. Si menciona "correo/email/gmail" + acción → GMAIL
-2. Si menciona "evento/reunión/agenda/calendario" + acción → CALENDAR
+
+⚠️ DISTINCIÓN CRÍTICA: Lectura vs Escritura
+- LECTURA de datos existentes (consultas sobre información ya ingresada) → RAG
+- ESCRITURA de nuevos datos (enviar email, crear evento) → GMAIL/CALENDAR/etc.
+
+Ejemplos:
+✅ "¿Qué correos he recibido hoy?" → RAG (lectura)
+✅ "¿Recibí algún correo de Anthropic?" → RAG (lectura)
+✅ "¿Qué eventos tengo mañana?" → RAG (lectura)
+❌ "Envía un correo a Juan" → GMAIL (escritura)
+❌ "Crea un evento para mañana" → CALENDAR (escritura)
+
+1. Si PREGUNTA sobre correos/eventos RECIBIDOS o existentes → RAG (NO GMAIL/CALENDAR)
+2. Si ENVÍA/CREA correo/evento → GMAIL/CALENDAR
 3. Si menciona "Google Doc/Sheet/Slide" → GOOGLE_DRIVE
 4. Si menciona "recordatorio/to-do" simple → GOOGLE_TASKS
 5. Si menciona "Notion" o "proyecto" o contexto complejo → NOTION_MCP
 6. Si menciona URL o "navega" → BROWSER
-7. Si pregunta por información en RAG_CONTEXT → RAG
+7. Si pregunta por información y RAG_CONTEXT tiene datos relevantes → RAG
 8. Solo usa COMPLEX si claramente necesita 2+ herramientas DIFERENTES
-9. Solo usa SIMPLE si es conversación casual SIN requerir acciones
+9. Solo usa SIMPLE si es conversación casual SIN requerir acciones o datos
 
 RAG_CONTEXT disponible:
 ${ragContext ? 'SÍ - hay información relevante en memoria' : 'NO - no hay información relevante'}

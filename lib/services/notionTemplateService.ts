@@ -223,11 +223,21 @@ export async function installNotionTemplate(
       parentPageId = extractPageId(parentPageResult);
     } else {
       // Si no hay páginas, el usuario debe crear al menos una
-      console.error('[TEMPLATE] No se encontraron páginas en el workspace');
-      throw new Error(
-        'No se encontraron páginas en tu workspace de Notion. ' +
-        'Por favor, abre Notion, crea una página nueva (puede estar vacía) y vuelve a intentar la instalación.'
-      );
+      const errorMessage = 'Tu workspace de Notion está vacío. Por favor, abre Notion y crea al menos una página (puede estar vacía). Luego vuelve a intentar la instalación.';
+      console.error('[TEMPLATE] ✗ No se encontraron páginas en el workspace');
+      console.error('[TEMPLATE] ✗ Este error se guardará en la BD para que el usuario lo vea');
+
+      // Guardar error inmediatamente en la BD
+      await supabase
+        .from('user_notion_templates')
+        .update({
+          installation_status: 'failed',
+          installation_error: errorMessage,
+          installation_progress: 0
+        })
+        .match({ user_id: userId, template_pack_id: templatePackId });
+
+      throw new Error(errorMessage);
     }
 
     installedIds['parent_page_id'] = parentPageId;
@@ -387,21 +397,34 @@ export async function installNotionTemplate(
     console.error(`[TEMPLATE] ========================================`);
     console.error(`[TEMPLATE] ✗ Error instalando plantilla:`, error.message);
     console.error(`[TEMPLATE] Stack:`, error.stack);
+    console.error(`[TEMPLATE] Error completo:`, JSON.stringify(error, null, 2));
     console.error(`[TEMPLATE] ========================================`);
 
-    // Actualizar estado a 'failed'
+    // Mensajes de error más amigables para el usuario
+    let userFriendlyError = error.message;
+
+    if (error.message.includes('Unauthorized') || error.message.includes('401')) {
+      userFriendlyError = 'Tu token de Notion expiró. Por favor reconecta tu cuenta en Settings > Conexiones.';
+    } else if (error.message.includes('Forbidden') || error.message.includes('403')) {
+      userFriendlyError = 'El asistente no tiene permisos para crear contenido en tu workspace de Notion. Por favor verifica los permisos de la integración.';
+    } else if (error.message.includes('Not found') || error.message.includes('404')) {
+      userFriendlyError = 'No se pudo acceder a tu workspace de Notion. Verifica que la integración esté correctamente conectada.';
+    }
+
+    // Actualizar estado a 'failed' con error amigable
     await supabase
       .from('user_notion_templates')
       .update({
         installation_status: 'failed',
-        installation_error: error.message
+        installation_error: userFriendlyError,
+        installation_progress: 0
       })
       .match({ user_id: userId, template_pack_id: templatePackId });
 
     return {
       success: false,
       installedIds: {},
-      error: error.message
+      error: userFriendlyError
     };
   }
 }
