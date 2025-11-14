@@ -1,5 +1,5 @@
 import { google, Auth } from 'googleapis';
-import { decryptToken } from './encryption';
+import { decryptToken } from './tokenService';
 
 // ========================================
 // ESTRATEGIA DE CONSENTIMIENTO INCREMENTAL
@@ -81,7 +81,7 @@ async function getAuthenticatedGoogleClient(supabase: any, userId: string): Prom
   }
 
   // 2. Descifrar el refresh_token
-  const decryptedRefreshToken = decryptToken(credential);
+  const decryptedRefreshToken = await decryptToken(credential);
 
   // 3. Crear el cliente OAuth2
   const oauth2Client = new google.auth.OAuth2(
