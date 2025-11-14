@@ -1,32 +1,50 @@
 import { google, Auth } from 'googleapis';
 import { decryptToken } from './encryption';
 
-// Scopes requeridos para la aplicación
-// ⚠️ NOTA: Los scopes de escritura (send, compose, calendar.events, tasks, drive.file)
-// requieren verificación de Google. Ver GOOGLE_VERIFICATION.md para más detalles.
-export const requiredScopes = [
+// ========================================
+// ESTRATEGIA DE CONSENTIMIENTO INCREMENTAL
+// ========================================
+// Implementamos incremental authorization para cumplir mejores prácticas de Google.
+// Ver: OAUTH_TROUBLESHOOTING.md para detalles.
+
+// Scopes NO sensibles (NO requieren verificación de Google)
+// Estos se solicitan en el login inicial
+export const initialScopes = [
   // User Info (siempre requerido)
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
 
-  // Gmail - Lectura y escritura
-  'https://www.googleapis.com/auth/gmail.readonly',      // Lectura de correos
-  'https://www.googleapis.com/auth/gmail.send',          // Enviar correos (REQUIERE VERIFICACIÓN)
-  'https://www.googleapis.com/auth/gmail.compose',       // Crear/modificar borradores (REQUIERE VERIFICACIÓN)
+  // Gmail - Solo lectura (NO sensible)
+  'https://www.googleapis.com/auth/gmail.readonly',      // Lectura de correos ✅
 
-  // Calendar - Lectura y escritura
-  'https://www.googleapis.com/auth/calendar',            // Acceso completo al calendario (REQUIERE VERIFICACIÓN)
-  'https://www.googleapis.com/auth/calendar.events',     // Crear/modificar/eliminar eventos (REQUIERE VERIFICACIÓN)
+  // Calendar - Solo lectura (NO sensible)
+  'https://www.googleapis.com/auth/calendar.readonly',   // Lectura de calendario ✅
 
-  // Google Tasks
-  'https://www.googleapis.com/auth/tasks',               // Acceso completo a tareas (REQUIERE VERIFICACIÓN)
+  // Google Contacts - Solo lectura (NO sensible)
+  'https://www.googleapis.com/auth/contacts.readonly',   // Lectura de contactos ✅
 
-  // Google Contacts (para búsqueda de emails)
-  'https://www.googleapis.com/auth/contacts.readonly',   // Lectura de contactos
-
-  // Google Drive (solo archivos creados por la app)
-  'https://www.googleapis.com/auth/drive.file',          // Crear/gestionar archivos de la app (NO SENSIBLE)
+  // Google Drive - Solo archivos de la app (NO sensible)
+  'https://www.googleapis.com/auth/drive.file',          // Archivos creados por la app ✅
 ];
+
+// Scopes RESTRINGIDOS (REQUIEREN verificación de Google - 2-6 semanas)
+// Estos se solicitarán on-demand cuando el usuario intente usar la funcionalidad
+export const restrictedScopes = [
+  // Gmail - Escritura (RESTRINGIDO)
+  'https://www.googleapis.com/auth/gmail.send',          // Enviar correos ⚠️
+  'https://www.googleapis.com/auth/gmail.compose',       // Crear/modificar borradores ⚠️
+
+  // Calendar - Lectura y escritura (RESTRINGIDO)
+  'https://www.googleapis.com/auth/calendar',            // Acceso completo al calendario ⚠️
+  'https://www.googleapis.com/auth/calendar.events',     // Crear/modificar/eliminar eventos ⚠️
+
+  // Google Tasks (RESTRINGIDO)
+  'https://www.googleapis.com/auth/tasks',               // Acceso completo a tareas ⚠️
+];
+
+// SCOPES ACTUALES: Por ahora solo usamos los NO sensibles
+// Esto permite que Gmail Read, Calendar Read y Contacts funcionen sin verificación
+export const requiredScopes = initialScopes;
 
 // Función sobrecargada para soportar ambos casos de uso
 export function getGoogleOAuthClient(): Auth.OAuth2Client;

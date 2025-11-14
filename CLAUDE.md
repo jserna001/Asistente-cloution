@@ -313,6 +313,7 @@ npx tsx scripts/ingest-gmail.ts
 
 - **Turbopack Alias Issue:** `next.config.ts` has workaround for path aliases - if developing without Turbopack, can be simplified
 - **Browser Service Dependency:** Chat endpoint requires browser-service running if browser tools are needed; handle gracefully with timeout/fallback
+- **OAuth Scopes Authentication (2025-11-13):** Gmail and Calendar tools fail with authentication error due to requesting restricted scopes (gmail.send, calendar.events) without Google verification. **Solution:** Add user as Test User in Google Cloud Console OR implement incremental consent. See `OAUTH_TROUBLESHOOTING.md` for full diagnosis and solutions.
 
 ## Code Style & Patterns
 
