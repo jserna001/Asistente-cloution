@@ -283,6 +283,42 @@ export function parseDateRangeForCalendar(rangeStr: string): { timeMin: Date; ti
     return { timeMin: start, timeMax: end };
   }
 
+  // Últimos N días (ej: "last 7 days", "últimos 7 días", "pasados 7 días")
+  const lastDaysMatch = lowerStr.match(/(last|últimos?|ultimos?|pasados?)\s+(\d+)\s+(día|dias|day|days)/);
+  if (lastDaysMatch) {
+    const days = parseInt(lastDaysMatch[2], 10);
+    const start = new Date(now);
+    start.setDate(start.getDate() - days);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    return { timeMin: start, timeMax: end };
+  }
+
+  // Semana pasada (ej: "last week", "semana pasada")
+  if (lowerStr.includes('semana pasada') || lowerStr.includes('last week')) {
+    const start = new Date(now);
+    const dayOfWeek = start.getDay();
+    const diff = start.getDate() - dayOfWeek - 6; // Ir al lunes de la semana pasada
+    start.setDate(diff);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6); // Domingo de la semana pasada
+    end.setHours(23, 59, 59, 999);
+
+    return { timeMin: start, timeMax: end };
+  }
+
+  // Mes pasado (ej: "last month", "mes pasado")
+  if (lowerStr.includes('mes pasado') || lowerStr.includes('last month')) {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth(), 0);
+    end.setHours(23, 59, 59, 999);
+    return { timeMin: start, timeMax: end };
+  }
+
   // Este mes (month)
   if (lowerStr.includes('este mes') || lowerStr.includes('this month')) {
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
