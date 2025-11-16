@@ -2,159 +2,145 @@
 import { config } from 'dotenv';
 config({ path: './.env.local' });
 
-// Esperar a que dotenv se cargue completamente
+// Validar variables de entorno críticas
 if (!process.env.ENCRYPTION_KEY) {
   console.error('Error: ENCRYPTION_KEY no está definida. Asegúrate de que .env.local existe y tiene todas las variables.');
   process.exit(1);
 }
 
 import { createClient } from '@supabase/supabase-js';
-import { decryptToken } from '../lib/tokenService';
-import { google, Auth } from 'googleapis';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// --- CONFIGURACIÓN ---
-// TODO: Reemplaza este placeholder con el ID de usuario real para el que quieres ingestar correos.
-const userId = '575a8929-81b3-4efa-ba4d-31b86b523c74'; 
-// -------------------
+import { GmailSyncService } from '../lib/gmailService';
 
 /**
- * Worker de ingesta para procesar correos nuevos de Gmail, generar embeddings
- * y guardarlos en Supabase para un sistema RAG.
+ * Script CLI para sincronizar Gmail de uno o múltiples usuarios
+ *
+ * Uso:
+ *   npx tsx scripts/ingest-gmail.ts [userId]                    - Sincronizar usuario específico
+ *   npx tsx scripts/ingest-gmail.ts --all                       - Sincronizar todos los usuarios con credenciales
+ *   npx tsx scripts/ingest-gmail.ts [userId] --force-full-sync  - Forzar sincronización completa
+ *
+ * Ejemplos:
+ *   npx tsx scripts/ingest-gmail.ts 575a8929-81b3-4efa-ba4d-31b86b523c74
+ *   npx tsx scripts/ingest-gmail.ts --all
+ *   npx tsx scripts/ingest-gmail.ts 575a8929-81b3-4efa-ba4d-31b86b523c74 --force-full-sync
  */
+
 async function main() {
-  console.log('--- Iniciando worker de ingesta de Gmail ---');
+  console.log('╔════════════════════════════════════════════════════════╗');
+  console.log('║     Worker de Sincronización de Gmail (v2.0)          ║');
+  console.log('╚════════════════════════════════════════════════════════╝\n');
 
   try {
-    // 1. Validar y obtener las variables de entorno.
+    // 1. Validar variables de entorno
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const googleClientId = process.env.GOOGLE_CLIENT_ID;
-    const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
     const geminiApiKey = process.env.GEMINI_API_KEY;
 
-    if (!supabaseUrl || !supabaseServiceKey || !googleClientId || !googleClientSecret || !geminiApiKey) {
-      throw new Error('Faltan una o más variables de entorno críticas.');
+    if (!supabaseUrl || !supabaseServiceKey || !geminiApiKey) {
+      throw new Error('Faltan variables de entorno críticas (Supabase o Gemini API)');
     }
 
-    // 2. Inicializar clientes (usando SERVICE_ROLE_KEY para bypassar RLS).
+    // 2. Parsear argumentos de línea de comandos
+    const args = process.argv.slice(2);
+    const syncAll = args.includes('--all');
+    const forceFullSync = args.includes('--force-full-sync');
+    const targetUserId = args.find(arg => !arg.startsWith('--'));
+
+    // 3. Inicializar servicio
+    const gmailService = new GmailSyncService(supabaseUrl, supabaseServiceKey, geminiApiKey);
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
-    const oauth2Client = new google.auth.OAuth2(googleClientId, googleClientSecret);
-    console.log('Clientes de Supabase, Google AI y OAuth inicializados.');
 
-    // 3. Obtener y desencriptar el refresh_token del usuario.
-    const { data: creds, error: credsError } = await supabase
-      .from('user_credentials')
-      .select('encrypted_refresh_token, iv, auth_tag')
-      .eq('user_id', userId)
-      .eq('service_name', 'google')
-      .single();
+    // 4. Determinar usuarios a sincronizar
+    let userIds: string[] = [];
 
-    if (credsError || !creds) {
-      throw new Error(`No se encontraron credenciales para el usuario ${userId}. Error: ${credsError?.message}`);
-    }
+    if (syncAll) {
+      console.log('🔍 Buscando todos los usuarios con credenciales de Google...\n');
 
-    const decryptedToken = await decryptToken(creds as any);
-    oauth2Client.setCredentials({ refresh_token: decryptedToken });
-    console.log('Token de Google desencriptado y configurado.');
+      const { data: users, error } = await supabase
+        .from('user_credentials')
+        .select('user_id')
+        .eq('service_name', 'google');
 
-    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-
-    // 4. Obtener el último `historyId` sincronizado.
-    const { data: syncStatus, error: syncError } = await supabase
-      .from('sync_status')
-      .select('last_sync_token')
-      .eq('user_id', userId)
-      .eq('service_name', 'google')
-      .single();
-
-    const lastHistoryId = syncStatus?.last_sync_token || null;
-    console.log(`Último History ID: ${lastHistoryId || 'Ninguno (primera sincronización)'}`);
-
-    let currentStartHistoryId = lastHistoryId;
-
-    // Si es la primera sincronización, obtenemos el historyId actual del perfil del usuario.
-    if (!currentStartHistoryId) {
-      console.log('Primera sincronización: Obteniendo el historyId actual del perfil de Gmail...');
-      const profile = await gmail.users.getProfile({ userId: 'me' });
-      currentStartHistoryId = profile.data.historyId || null;
-      if (!currentStartHistoryId) {
-        console.log('No se pudo obtener un historyId inicial del perfil. No hay historial para sincronizar.');
-        return;
+      if (error) {
+        throw new Error(`Error obteniendo usuarios: ${error.message}`);
       }
-      console.log(`History ID inicial obtenido: ${currentStartHistoryId}`);
-    }
 
-    // 5. Obtener historial de cambios desde la última sincronización.
-    console.log('Buscando correos nuevos desde la última sincronización...');
-    const historyResponse = await gmail.users.history.list({
-      userId: 'me',
-      startHistoryId: currentStartHistoryId,
-      historyTypes: ['messageAdded'],
-    });
+      userIds = users.map(u => u.user_id);
+      console.log(`✓ Encontrados ${userIds.length} usuarios con credenciales de Google\n`);
 
-    const newHistoryId = historyResponse.data.historyId;
-    if (!newHistoryId) {
-        console.log('No hay un nuevo History ID. Sincronización completa.');
-        return;
-    }
+    } else if (targetUserId) {
+      userIds = [targetUserId];
+      console.log(`🎯 Sincronizando usuario específico: ${targetUserId}\n`);
 
-    const messagesAdded = historyResponse.data.history?.flatMap(h => h.messagesAdded || []) || [];
-
-    if (messagesAdded.length === 0) {
-      console.log('No hay correos nuevos.');
     } else {
-        console.log(`${messagesAdded.length} correos nuevos encontrados. Procesando...`);
-        // 6. Procesar cada correo nuevo.
-        for (const added of messagesAdded) {
-            if (!added.message?.id) continue;
+      console.error('❌ Error: Debes especificar un userId o usar --all\n');
+      console.log('Uso:');
+      console.log('  npx tsx scripts/ingest-gmail.ts [userId]');
+      console.log('  npx tsx scripts/ingest-gmail.ts --all');
+      console.log('  npx tsx scripts/ingest-gmail.ts [userId] --force-full-sync\n');
+      process.exit(1);
+    }
 
-            const msg = await gmail.users.messages.get({ userId: 'me', id: added.message.id });
+    // 5. Sincronizar cada usuario
+    let totalProcessed = 0;
+    let totalSkipped = 0;
+    let successCount = 0;
+    let errorCount = 0;
 
-            const subjectHeader = msg.data.payload?.headers?.find(h => h.name === 'Subject');
-            const subject = subjectHeader?.value || 'Sin Asunto';
-            const snippet = msg.data.snippet || '';
+    for (const userId of userIds) {
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`📧 Procesando usuario: ${userId}`);
+      console.log(`${'='.repeat(60)}\n`);
 
-            const textContent = `Asunto: ${subject}\n\n${snippet}`;
+      try {
+        const result = await gmailService.syncUserGmail(userId, forceFullSync);
 
-            // 7. Generar embedding.
-            const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
-            const embeddingResult = await model.embedContent(textContent);
-            const embedding = embeddingResult.embedding.values;
+        if (result.success) {
+          successCount++;
+          totalProcessed += result.emailsProcessed;
+          totalSkipped += result.emailsSkipped;
 
-            // 8. Guardar en la base de datos.
-            const { error: insertError } = await supabase.from('document_chunks').insert({
-                user_id: userId,
-                source_type: 'gmail',
-                source_id: msg.data.id!,
-                content: textContent,
-                embedding: embedding,
-            });
-
-            if (insertError) {
-                console.error(`Error al guardar el correo [${subject}] en la DB:`, insertError.message);
-            } else {
-                console.log(`✅ Correo [${subject}] procesado y guardado.`);
-            }
+          console.log('\n✅ SINCRONIZACIÓN EXITOSA');
+          console.log(`   - Emails procesados: ${result.emailsProcessed}`);
+          console.log(`   - Emails omitidos: ${result.emailsSkipped}`);
+          console.log(`   - Tipo: ${result.isFirstSync ? 'Inicial' : 'Incremental'}`);
+          console.log(`   - Duración: ${(result.duration / 1000).toFixed(2)}s`);
+          if (result.newHistoryId) {
+            console.log(`   - Nuevo History ID: ${result.newHistoryId}`);
+          }
+        } else {
+          errorCount++;
+          console.error(`\n❌ SINCRONIZACIÓN FALLIDA`);
+          console.error(`   - Error: ${result.error}`);
         }
+
+      } catch (error: any) {
+        errorCount++;
+        console.error(`\n❌ ERROR INESPERADO: ${error.message}`);
+      }
     }
 
-    // 9. Actualizar el `historyId` para la próxima sincronización.
-    const { error: updateSyncError } = await supabase.from('sync_status').upsert({
-      user_id: userId,
-      service_name: 'google',
-      last_sync_token: newHistoryId,
-    }, { onConflict: 'user_id, service_name' });
+    // 6. Resumen final
+    console.log(`\n\n${'═'.repeat(60)}`);
+    console.log('📊 RESUMEN FINAL');
+    console.log(`${'═'.repeat(60)}`);
+    console.log(`Usuarios procesados:     ${successCount}/${userIds.length}`);
+    console.log(`Usuarios con errores:    ${errorCount}`);
+    console.log(`Total emails procesados: ${totalProcessed}`);
+    console.log(`Total emails omitidos:   ${totalSkipped}`);
+    console.log(`${'═'.repeat(60)}\n`);
 
-    if (updateSyncError) {
-        throw new Error(`Error al actualizar el estado de sincronización: ${updateSyncError.message}`);
+    if (errorCount > 0) {
+      console.warn('⚠️  Algunos usuarios tuvieron errores. Revisa los logs arriba.\n');
+      process.exit(1);
+    } else {
+      console.log('✨ Sincronización completada exitosamente para todos los usuarios.\n');
+      process.exit(0);
     }
 
-    console.log(`Sincronización completada. Nuevo History ID guardado: ${newHistoryId}`);
-
-  } catch (error) {
-    console.error('❌ Ocurrió un error durante la ingesta de Gmail:', error);
+  } catch (error: any) {
+    console.error('\n❌ ERROR FATAL:', error.message);
+    console.error(error.stack);
     process.exit(1);
   }
 }

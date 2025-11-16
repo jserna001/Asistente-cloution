@@ -30,6 +30,21 @@ interface UserPreferences {
   timezone: string;
 }
 
+interface GmailSyncStatus {
+  hasCredentials: boolean;
+  syncEnabled: boolean;
+  lastSyncAt: string | null;
+  firstSyncCompleted: boolean;
+  totalEmailsSynced: number;
+  errorCount: number;
+  lastError: string | null;
+  config: {
+    maxEmailsPerSync: number;
+    initialSyncDays: number;
+    watchEnabled: boolean;
+  } | null;
+}
+
 type Tab = 'general' | 'connections' | 'preferences' | 'account';
 
 export default function SettingsPage() {
@@ -49,6 +64,8 @@ export default function SettingsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [gmailSyncStatus, setGmailSyncStatus] = useState<GmailSyncStatus | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -88,6 +105,11 @@ export default function SettingsPage() {
             daily_summary_time: prefs.daily_summary_time,
             timezone: prefs.timezone,
           });
+        }
+
+        // Cargar estado de sincronización de Gmail
+        if (newConnections.google) {
+          loadGmailSyncStatus();
         }
       }
       // Simulate a longer loading time to see the loader
@@ -145,6 +167,67 @@ export default function SettingsPage() {
     tl.to(contentRef.current, { height: newHeight, duration: 0.4, ease: 'power2.inOut' })
       .to(outgoingPanel, { autoAlpha: 0, y: -15, duration: 0.3, ease: 'power2.in' }, 0)
       .fromTo(incomingPanel, { y: 15 }, { autoAlpha: 1, y: 0, duration: 0.4, ease: 'power2.out' }, 0.1);
+  };
+
+  const loadGmailSyncStatus = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch('/api/sync/gmail', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setGmailSyncStatus(data);
+      }
+    } catch (error) {
+      console.error('Error cargando estado de sincronización:', error);
+    }
+  };
+
+  const handleSyncGmail = async (forceFullSync: boolean = false) => {
+    if (syncing || !user) return;
+
+    setSyncing(true);
+    setLoading(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No hay sesión activa');
+      }
+
+      const response = await fetch('/api/sync/gmail', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ forceFullSync }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        triggerSuccess(
+          `Sincronización completada: ${result.emailsProcessed} emails procesados`
+        );
+        // Recargar estado
+        await loadGmailSyncStatus();
+      } else {
+        triggerError(`Error en sincronización: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Error sincronizando Gmail:', error);
+      triggerError(`Error: ${error.message}`);
+    } finally {
+      setSyncing(false);
+      setLoading(false);
+    }
   };
 
   const handleConnectNotion = () => {
@@ -549,6 +632,253 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Gmail Sync Status Card */}
+              {connections.google && gmailSyncStatus?.hasCredentials && (
+                <div style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-primary)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 'var(--space-6)',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 'var(--space-4)',
+                  }}>
+                    <div>
+                      <div style={{
+                        fontSize: 'var(--text-lg)',
+                        fontWeight: 'var(--font-semibold)',
+                        color: 'var(--text-primary)',
+                        marginBottom: 'var(--space-1)',
+                      }}>
+                        Sincronización de Gmail
+                      </div>
+                      <div style={{
+                        fontSize: 'var(--text-sm)',
+                        color: 'var(--text-secondary)',
+                      }}>
+                        Sincroniza tus emails para búsqueda y análisis
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: 'var(--space-4)',
+                    marginBottom: 'var(--space-4)',
+                  }}>
+                    <div style={{
+                      padding: 'var(--space-3)',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-tertiary)',
+                    }}>
+                      <div style={{
+                        fontSize: 'var(--text-xs)',
+                        color: 'var(--text-secondary)',
+                        marginBottom: 'var(--space-1)',
+                      }}>
+                        Emails sincronizados
+                      </div>
+                      <div style={{
+                        fontSize: 'var(--text-xl)',
+                        fontWeight: 'var(--font-bold)',
+                        color: 'var(--text-primary)',
+                      }}>
+                        {gmailSyncStatus.totalEmailsSynced.toLocaleString()}
+                      </div>
+                    </div>
+
+                    <div style={{
+                      padding: 'var(--space-3)',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-tertiary)',
+                    }}>
+                      <div style={{
+                        fontSize: 'var(--text-xs)',
+                        color: 'var(--text-secondary)',
+                        marginBottom: 'var(--space-1)',
+                      }}>
+                        Última sincronización
+                      </div>
+                      <div style={{
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 'var(--font-semibold)',
+                        color: 'var(--text-primary)',
+                      }}>
+                        {gmailSyncStatus.lastSyncAt
+                          ? new Date(gmailSyncStatus.lastSyncAt).toLocaleString('es-CO', {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            })
+                          : 'Nunca'}
+                      </div>
+                    </div>
+
+                    {gmailSyncStatus.errorCount > 0 && (
+                      <div style={{
+                        padding: 'var(--space-3)',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      }}>
+                        <div style={{
+                          fontSize: 'var(--text-xs)',
+                          color: 'var(--text-secondary)',
+                          marginBottom: 'var(--space-1)',
+                        }}>
+                          Errores
+                        </div>
+                        <div style={{
+                          fontSize: 'var(--text-sm)',
+                          fontWeight: 'var(--font-semibold)',
+                          color: 'var(--accent-red)',
+                        }}>
+                          {gmailSyncStatus.errorCount}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Error Message */}
+                  {gmailSyncStatus.lastError && (
+                    <div style={{
+                      padding: 'var(--space-3)',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid var(--accent-red)',
+                      marginBottom: 'var(--space-4)',
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 'var(--space-2)',
+                      }}>
+                        <span className="icon-shake" style={{ display: 'flex', marginTop: '2px' }}>
+                          <AlertIcon size={16} color="var(--accent-red)" />
+                        </span>
+                        <div>
+                          <div style={{
+                            fontSize: 'var(--text-xs)',
+                            fontWeight: 'var(--font-semibold)',
+                            color: 'var(--accent-red)',
+                            marginBottom: 'var(--space-1)',
+                          }}>
+                            Último error:
+                          </div>
+                          <div style={{
+                            fontSize: 'var(--text-xs)',
+                            color: 'var(--text-secondary)',
+                          }}>
+                            {gmailSyncStatus.lastError}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div style={{
+                    display: 'flex',
+                    gap: 'var(--space-3)',
+                  }}>
+                    <button
+                      onClick={() => handleSyncGmail(false)}
+                      disabled={syncing}
+                      className="icon-click-bounce"
+                      style={{
+                        flex: 1,
+                        padding: 'var(--space-3) var(--space-4)',
+                        borderRadius: 'var(--radius-md)',
+                        border: 'none',
+                        backgroundColor: syncing ? 'var(--bg-tertiary)' : 'var(--accent-blue)',
+                        color: 'white',
+                        cursor: syncing ? 'not-allowed' : 'pointer',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 'var(--font-semibold)',
+                        transition: 'all var(--transition-fast)',
+                        opacity: syncing ? 0.6 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 'var(--space-2)',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!syncing) e.currentTarget.style.backgroundColor = 'var(--accent-blue-hover)';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!syncing) e.currentTarget.style.backgroundColor = 'var(--accent-blue)';
+                      }}
+                    >
+                      {syncing ? (
+                        <>
+                          <AnimatedIcon animation="spin" trigger="loop">
+                            <div style={{
+                              width: '14px',
+                              height: '14px',
+                              border: '2px solid white',
+                              borderTopColor: 'transparent',
+                              borderRadius: '50%',
+                            }} />
+                          </AnimatedIcon>
+                          Sincronizando...
+                        </>
+                      ) : (
+                        <>Sincronizar Ahora</>
+                      )}
+                    </button>
+
+                    {!gmailSyncStatus.firstSyncCompleted && (
+                      <button
+                        onClick={() => handleSyncGmail(true)}
+                        disabled={syncing}
+                        className="icon-click-bounce"
+                        style={{
+                          padding: 'var(--space-3) var(--space-4)',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid var(--border-primary)',
+                          backgroundColor: 'var(--bg-secondary)',
+                          color: 'var(--text-primary)',
+                          cursor: syncing ? 'not-allowed' : 'pointer',
+                          fontSize: 'var(--text-sm)',
+                          fontWeight: 'var(--font-medium)',
+                          transition: 'all var(--transition-fast)',
+                          opacity: syncing ? 0.6 : 1,
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!syncing) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!syncing) e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                        }}
+                      >
+                        Sincronización Inicial
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  {!gmailSyncStatus.firstSyncCompleted && (
+                    <div style={{
+                      marginTop: 'var(--space-3)',
+                      padding: 'var(--space-3)',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                      border: '1px solid var(--accent-blue)',
+                    }}>
+                      <div style={{
+                        fontSize: 'var(--text-xs)',
+                        color: 'var(--text-secondary)',
+                      }}>
+                        💡 Primera vez: La sincronización inicial procesará los últimos {gmailSyncStatus.config?.initialSyncDays || 15} días de emails (máx. {gmailSyncStatus.config?.maxEmailsPerSync || 200} emails).
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
