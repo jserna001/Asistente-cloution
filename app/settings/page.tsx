@@ -90,6 +90,11 @@ export default function SettingsPage() {
             if (cred.service_name === 'notion') newConnections.notion = true;
           });
           setConnections(newConnections);
+
+          // Cargar estado de sincronización de Gmail si está conectado
+          if (newConnections.google) {
+            loadGmailSyncStatus();
+          }
         }
 
         // Cargar preferencias de resumen diario
@@ -105,11 +110,6 @@ export default function SettingsPage() {
             daily_summary_time: prefs.daily_summary_time,
             timezone: prefs.timezone,
           });
-        }
-
-        // Cargar estado de sincronización de Gmail
-        if (newConnections.google) {
-          loadGmailSyncStatus();
         }
       }
       // Simulate a longer loading time to see the loader
