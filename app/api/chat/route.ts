@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import { executeRAG } from '../../../lib/ragService';
 import { orchestrateModelExecution } from '../../../lib/orchestration/modelOrchestrator';
 import { ExecutionContext } from '../../../lib/orchestration/types';
+import { logLearningEvent, getUserFacts } from '../../../lib/learningLogger';
 
 /**
  * Endpoint de la API para chatear con el asistente.
@@ -55,12 +56,18 @@ export async function POST(req: Request) {
     console.log(`[CHAT API] Ejecutando RAG (pre-búsqueda)...`);
     const ragContext = await executeRAG(supabase, userId, query);
 
+    // Obtener hechos del usuario para enriquecer contexto
+    const userFacts = await getUserFacts(supabase, userId, ['preference', 'context', 'goal'], 5);
+    const factsContext = userFacts.length > 0
+      ? `\n\nContexto personal del usuario:\n${userFacts.map(f => `- ${f.content}`).join('\n')}`
+      : '';
+
     // Preparar contexto de ejecución
     const context: ExecutionContext = {
       userId,
       query,
       history,
-      ragContext,
+      ragContext: ragContext + factsContext,
       supabase
     };
 
@@ -70,6 +77,21 @@ export async function POST(req: Request) {
     console.log(`[CHAT API] ✓ Respuesta generada con ${result.modelUsed}`);
     console.log(`[CHAT API] Tipo de tarea: ${result.taskType}`);
     console.log(`[CHAT API] Tiempo de ejecución: ${result.executionTimeMs}ms\n`);
+
+    // Registrar evento de aprendizaje (async, no bloquea respuesta)
+    logLearningEvent(supabase, userId, {
+      eventType: 'query',
+      queryText: query,
+      taskTypeClassified: result.taskType,
+      modelUsed: result.modelUsed,
+      executionTimeMs: result.executionTimeMs,
+      success: true,
+      metadata: {
+        historyLength: history.length,
+        ragContextLength: ragContext.length,
+        userFactsCount: userFacts.length
+      }
+    }).catch(err => console.error('[CHAT API] Error logging event:', err));
 
     return NextResponse.json({
       answer: result.answer,
@@ -85,6 +107,37 @@ export async function POST(req: Request) {
     console.error('[CHAT API] Error en el endpoint de chat:', error);
     console.error('[CHAT API] Error stack:', error.stack);
     console.error('[CHAT API] Error details:', JSON.stringify(error, null, 2));
+
+    // Intentar loguear el error (requiere supabase y userId del contexto anterior)
+    // Nota: Este logging es best-effort, no debería fallar la respuesta
+    try {
+      const cookieStore = await (cookies() as any);
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            get(name: string) { return cookieStore.get(name)?.value },
+            set() {},
+            remove() {},
+          },
+        }
+      );
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await logLearningEvent(supabase, user.id, {
+          eventType: 'error',
+          success: false,
+          metadata: {
+            errorMessage: error.message,
+            errorType: error.constructor.name
+          }
+        });
+      }
+    } catch (logError) {
+      console.error('[CHAT API] Error logging failure event:', logError);
+    }
+
     return NextResponse.json({
       error: 'Ocurrió un error interno en el servidor.',
       details: error.message,
